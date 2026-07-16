@@ -51,6 +51,22 @@ test('pede token novo depois de expirar', async () => {
     assert.strictEqual(await auth.getToken(), 'tok-2');
 });
 
+test('pede token novo dentro da margem de 60 segundos antes de expirar', async () => {
+    nock('https://api.moloni.pt').post('/v1/grant/').query(true)
+        .reply(200, { access_token: 'tok-1', expires_in: 3600 });
+    nock('https://api.moloni.pt').post('/v1/grant/').query(true)
+        .reply(200, { access_token: 'tok-2', expires_in: 3600 });
+
+    let t = 0;
+    const auth = criarAuth(config, { agora: () => t });
+    assert.strictEqual(await auth.getToken(), 'tok-1');
+    // Avança para 30s antes da validade nominal (dentro da margem de 60s)
+    // expiraEm foi calculado como: 0 + (3600 - 60) * 1000 = 3540 * 1000
+    // Agora t = 3570 * 1000, que é > 3540 * 1000, então token expirou
+    t = (3600 - 30) * 1000;
+    assert.strictEqual(await auth.getToken(), 'tok-2');
+});
+
 test('lança erro quando a resposta não traz access_token', async () => {
     nock('https://api.moloni.pt').post('/v1/grant/').query(true)
         .reply(200, { error: 'invalid_grant' });
