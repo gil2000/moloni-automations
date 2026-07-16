@@ -1,6 +1,6 @@
 'use strict';
 const axios = require('axios');
-const { BASE } = require('./auth');
+const { BASE, TIMEOUT_MS } = require('./auth');
 
 function criarClient(config, auth) {
     async function post(caminho, body = {}) {
@@ -15,7 +15,10 @@ function criarClient(config, auth) {
         const { data } = await axios.post(
             `${BASE}/${caminho}/?access_token=${token}`,
             params.toString(),
-            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+            {
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                timeout: TIMEOUT_MS,
+            }
         );
         return data;
     }

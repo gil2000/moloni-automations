@@ -3,6 +3,10 @@ const axios = require('axios');
 
 const BASE = 'https://api.moloni.pt/v1';
 
+// Sem timeout, um pedido pendurado nunca rejeita e o job fica preso para
+// sempre — o retry do job.js só apanha erros, não apanha silêncio.
+const TIMEOUT_MS = 30000;
+
 // Atípico mas correto: o Moloni quer as credenciais na query string do
 // /grant/, não no body.
 function criarAuth(config, { agora = () => Date.now() } = {}) {
@@ -20,6 +24,7 @@ function criarAuth(config, { agora = () => Date.now() } = {}) {
                 username:      config.username,
                 password:      config.password,
             },
+            timeout: TIMEOUT_MS,
         });
 
         if (!data.access_token) {
@@ -35,4 +40,4 @@ function criarAuth(config, { agora = () => Date.now() } = {}) {
     return { getToken };
 }
 
-module.exports = { criarAuth, BASE };
+module.exports = { criarAuth, BASE, TIMEOUT_MS };

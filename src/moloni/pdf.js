@@ -2,12 +2,13 @@
 const axios = require('axios');
 const { wrapper } = require('axios-cookiejar-support');
 const { CookieJar } = require('tough-cookie');
+const { TIMEOUT_MS } = require('./auth');
 
 function criarPdf(client) {
     // Cookie jar partilhado: a página de preview abre a sessão que o pedido
     // final precisa para servir o PDF.
     const jar = new CookieJar();
-    const web = wrapper(axios.create({ jar, withCredentials: true }));
+    const web = wrapper(axios.create({ jar, withCredentials: true, timeout: TIMEOUT_MS }));
 
     async function obterBytes(documentId) {
         // PEGADINHA 1: não passar signed:1 aqui. Despoleta um fluxo de

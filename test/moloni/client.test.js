@@ -3,6 +3,7 @@ const { test, afterEach } = require('node:test');
 const assert = require('node:assert');
 const nock = require('nock');
 const { criarClient } = require('../../src/moloni/client');
+const { TIMEOUT_MS } = require('../../src/moloni/auth');
 
 const config = { companyId: 331227 };
 const authFalso = { getToken: async () => 'tok-1' };
@@ -35,4 +36,37 @@ test('funciona sem body', async () => {
 
     const client = criarClient(config, authFalso);
     assert.deepStrictEqual(await client.post('companies/getAll'), { ok: true });
+});
+
+test('envia timeout na configuração do pedido', async () => {
+    let configRecebida = null;
+
+    nock('https://api.moloni.pt')
+        .post('/v1/test/endpoint/')
+        .query(true)
+        .reply(function() {
+            // A config do request do nock é armazenada em options
+            configRecebida = this.req.getHeaders;
+            return [200, { ok: true }];
+        });
+
+    const client = criarClient(config, authFalso);
+
+    // Interceptar axios para verificar a config
+    const axios = require('axios');
+    let axiosConfigRecebida = null;
+    const interceptorId = axios.interceptors.request.use(cfg => {
+        axiosConfigRecebida = cfg;
+        return cfg;
+    });
+
+    try {
+        await client.post('test/endpoint');
+
+        // Verificar que timeout foi passado à config do axios
+        assert.strictEqual(axiosConfigRecebida.timeout, TIMEOUT_MS,
+            `Esperava timeout=${TIMEOUT_MS} mas got ${axiosConfigRecebida.timeout}`);
+    } finally {
+        axios.interceptors.request.eject(interceptorId);
+    }
 });
