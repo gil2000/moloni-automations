@@ -1215,7 +1215,12 @@ Express fino: serve a UI, arranca **um** job de cada vez, transmite progresso po
 
 **Files:**
 - Create: `src/server/index.js`
-- Test: nenhum — o servidor é fino de propósito. É exercitado à mão na Task 11.
+- Create: `src/server/validar.js`
+- Test: `test/server/validar.test.js`
+
+O servidor em si é fino e não leva testes — é exercitado ponta-a-ponta na Task 11.
+Mas as regras de validação do `POST /api/jobs` são lógica de negócio a sério e
+extraem-se para `validar.js`, que se testa puro, sem arrancar servidor nenhum.
 
 **Interfaces:**
 - Consumes: tudo o que veio antes.
@@ -1225,8 +1230,93 @@ Express fino: serve a UI, arranca **um** job de cada vez, transmite progresso po
   - `POST /api/jobs` body `{ inicio, fim, tipos: string[] }` → `202 { ok: true }`, ou `409` se já houver job a correr, ou `400` se os parâmetros forem inválidos
   - `GET /api/eventos` → stream SSE com os eventos do job + `{ fase: 'concluido', ... }` ou `{ fase: 'erro', motivo }`
   - `POST /api/abrir-pasta` → `200 { ok: true }`; abre a pasta no Finder/Explorer
+  - `validarPedido({ inicio, fim, tipos }, tiposValidos): string | null` — devolve a
+    mensagem de erro, ou `null` se o pedido for válido.
 
-- [ ] **Step 1: Implementar o servidor**
+- [ ] **Step 1: Escrever o teste que falha**
+
+Ficheiro `test/server/validar.test.js`:
+
+```js
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert');
+const { validarPedido } = require('../../src/server/validar');
+
+const TIPOS_VALIDOS = { recibos: {}, faturas: {} };
+const valido = { inicio: '2026-06-01', fim: '2026-06-30', tipos: ['recibos'] };
+
+test('aceita um pedido válido', () => {
+    assert.strictEqual(validarPedido(valido, TIPOS_VALIDOS), null);
+});
+
+test('rejeita datas em falta ou mal formatadas', () => {
+    assert.match(validarPedido({ ...valido, inicio: 'ontem' }, TIPOS_VALIDOS), /formato inválido/);
+    assert.match(validarPedido({ ...valido, fim: undefined }, TIPOS_VALIDOS), /formato inválido/);
+    assert.match(validarPedido({ ...valido, inicio: '2026-6-1' }, TIPOS_VALIDOS), /formato inválido/);
+    assert.match(validarPedido(undefined, TIPOS_VALIDOS), /formato inválido/);
+});
+
+test('rejeita início posterior ao fim', () => {
+    assert.match(
+        validarPedido({ ...valido, inicio: '2026-06-30', fim: '2026-06-01' }, TIPOS_VALIDOS),
+        /início é posterior/
+    );
+});
+
+test('aceita início igual ao fim (intervalo de um dia)', () => {
+    assert.strictEqual(
+        validarPedido({ ...valido, inicio: '2026-06-15', fim: '2026-06-15' }, TIPOS_VALIDOS),
+        null
+    );
+});
+
+test('rejeita tipos em falta, vazios ou desconhecidos', () => {
+    assert.match(validarPedido({ ...valido, tipos: [] }, TIPOS_VALIDOS), /tipo de documento/);
+    assert.match(validarPedido({ ...valido, tipos: undefined }, TIPOS_VALIDOS), /tipo de documento/);
+    assert.match(validarPedido({ ...valido, tipos: ['notasCredito'] }, TIPOS_VALIDOS), /tipo de documento/);
+});
+```
+
+- [ ] **Step 2: Correr o teste para confirmar que falha**
+
+Run: `npm test`
+Expected: FAIL — `Cannot find module '../../src/server/validar'`.
+
+- [ ] **Step 3: Implementar o validar.js**
+
+Ficheiro `src/server/validar.js`:
+
+```js
+'use strict';
+
+const DATA_VALIDA = /^\d{4}-\d{2}-\d{2}$/;
+
+// Devolve a mensagem de erro para mostrar à utilizadora, ou null se estiver tudo bem.
+function validarPedido(pedido, tiposValidos) {
+    const { inicio, fim, tipos } = pedido || {};
+
+    if (!DATA_VALIDA.test(inicio || '') || !DATA_VALIDA.test(fim || '')) {
+        return 'Datas em falta ou em formato inválido (YYYY-MM-DD).';
+    }
+    if (inicio > fim) {
+        return 'A data de início é posterior à data de fim.';
+    }
+    if (!Array.isArray(tipos) || tipos.length === 0 || tipos.some(t => !tiposValidos[t])) {
+        return 'Escolhe pelo menos um tipo de documento válido.';
+    }
+    return null;
+}
+
+module.exports = { validarPedido };
+```
+
+- [ ] **Step 4: Correr os testes**
+
+Run: `npm test`
+Expected: PASS — 41 testes.
+
+- [ ] **Step 5: Implementar o servidor**
 
 Ficheiro `src/server/index.js`:
 
@@ -1241,6 +1331,7 @@ const { criarClient } = require('../moloni/client');
 const { criarDocuments, TIPOS } = require('../moloni/documents');
 const { criarPdf } = require('../moloni/pdf');
 const { correrJob } = require('../download/job');
+const { validarPedido } = require('./validar');
 
 const PORTA = Number(process.env.PORT) || 4711;
 
@@ -1285,24 +1376,15 @@ app.get('/api/eventos', (req, res) => {
     req.on('close', () => clientes.delete(res));
 });
 
-const DATA_VALIDA = /^\d{4}-\d{2}-\d{2}$/;
-
 app.post('/api/jobs', async (req, res) => {
-    const { inicio, fim, tipos } = req.body || {};
+    const erro = validarPedido(req.body, TIPOS);
+    if (erro) return res.status(400).json({ erro });
 
-    if (!DATA_VALIDA.test(inicio || '') || !DATA_VALIDA.test(fim || '')) {
-        return res.status(400).json({ erro: 'Datas em falta ou em formato inválido (YYYY-MM-DD).' });
-    }
-    if (inicio > fim) {
-        return res.status(400).json({ erro: 'A data de início é posterior à data de fim.' });
-    }
-    if (!Array.isArray(tipos) || tipos.length === 0 || tipos.some(t => !TIPOS[t])) {
-        return res.status(400).json({ erro: 'Escolhe pelo menos um tipo de documento válido.' });
-    }
     if (jobAtivo) {
         return res.status(409).json({ erro: 'Já está um download a decorrer.' });
     }
 
+    const { inicio, fim, tipos } = req.body;
     jobAtivo = true;
     res.status(202).json({ ok: true });
 
@@ -1339,27 +1421,24 @@ app.listen(PORTA, () => {
 });
 ```
 
-- [ ] **Step 2: Confirmar que arranca e valida a config**
-
-Run: `node -e "require('./src/server/index.js')" & sleep 2; curl -s localhost:4711/api/tipos; kill %1`
-Expected: `{"recibos":"Recibo","faturas":"Fatura","faturasRecibo":"Fatura-Recibo"}`
-
-- [ ] **Step 3: Confirmar que rejeita parâmetros inválidos**
+- [ ] **Step 6: Confirmar que o servidor arranca e responde**
 
 Run:
 ```bash
 npm start & sleep 2
+curl -s localhost:4711/api/tipos
 curl -s -X POST localhost:4711/api/jobs -H 'Content-Type: application/json' -d '{"inicio":"ontem","fim":"2026-06-30","tipos":["recibos"]}'
-curl -s -X POST localhost:4711/api/jobs -H 'Content-Type: application/json' -d '{"inicio":"2026-06-30","fim":"2026-06-01","tipos":["recibos"]}'
 kill %1
 ```
-Expected: primeiro `{"erro":"Datas em falta ou em formato inválido (YYYY-MM-DD)."}`, segundo `{"erro":"A data de início é posterior à data de fim."}`
+Expected: primeiro `{"recibos":"Recibo","faturas":"Fatura","faturasRecibo":"Fatura-Recibo"}`,
+segundo `{"erro":"Datas em falta ou em formato inválido (YYYY-MM-DD)."}` — confirma que
+o `validar.js` está de facto ligado ao endpoint, que é o que os testes unitários não provam.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/server/index.js
-git commit -m "Servidor Express com SSE de progresso"
+git add src/server/index.js src/server/validar.js test/server/validar.test.js
+git commit -m "Servidor Express com SSE de progresso e validação testada"
 ```
 
 ---
@@ -1658,7 +1737,7 @@ Ambos estão no `.gitignore` — nunca os commitar.
 - [ ] **Step 5: Correr a suite completa**
 
 Run: `npm test`
-Expected: PASS — 36 testes, 0 falhas.
+Expected: PASS — 41 testes, 0 falhas.
 
 - [ ] **Step 6: Verificação ponta-a-ponta contra a API real**
 
