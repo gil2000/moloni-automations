@@ -1,0 +1,10 @@
+node_modules/
+
+# Credenciais Moloni do cliente
+.env
+
+# Saída: PDFs com dados pessoais e fiscais de clientes — nunca commitar
+downloads/
+recibos-download/
+
+.DS_Store
