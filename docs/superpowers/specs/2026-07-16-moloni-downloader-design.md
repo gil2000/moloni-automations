@@ -21,6 +21,10 @@ recibos de junho/2026, 0 falhas). Este projeto generaliza-o numa aplicação:
 ## Utilizadores e âmbito
 
 - **Agora:** ALLPRA e a contabilista da ALLPRA.
+- **Recibos são o caso real.** A cliente só pediu recibos. Faturas e faturas-recibo
+  são generalização deliberada — se algum dos dois se portar mal, corta-se sem afetar
+  o valor entregue. Isto define a ordem de ataque: recibos primeiro e a funcionar
+  ponta-a-ponta, os outros dois validados a seguir.
 - **Depois:** outros clientes que usem Moloni.
 - **Onboarding:** manual, feito pelo Gil. Ele instala a app e preenche as credenciais
   na máquina do cliente. **A app não tem UI de configuração de credenciais nem
@@ -189,7 +193,8 @@ abrir o browser. O Gil faz push; ela recebe no arranque seguinte.
   muda). **Primeira coisa a atacar** se houver queixas.
 - **Assumir que as pegadinhas do `getPDFLink` valem para faturas e faturas-recibo.**
   É a expectativa (o endpoint é o mesmo), mas só está provado para recibos. Validar
-  cedo, com um documento real de cada tipo, antes de construir por cima.
+  cedo, com um documento real de cada tipo. **Risco contido:** como a cliente só quer
+  recibos, se um destes tipos não funcionar, corta-se — não bloqueia a entrega.
 - **Volume desconhecido de faturas.** Os 935/mês são recibos. Não se sabe o volume de
   faturas e faturas-recibo — pode mudar a conta da lentidão.
 
