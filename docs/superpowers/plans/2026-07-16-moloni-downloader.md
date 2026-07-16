@@ -17,6 +17,7 @@
 - **NUNCA enviar `signed: 1`** ao `documents/getPDFLink`. Ver Task 5.
 - **Versões de dependências** iguais às de `izigo-backend` para consistência: `axios@^1.13.5`, `axios-cookiejar-support@^6.0.5`, `tough-cookie@^6.0.0`, `dotenv@^17.2.4`, `express@^5.2.1`.
 - **Não usar `qs`** — usar `new URLSearchParams()` (built-in). O script original usava `qs`, mas era dependência fantasma (vinha de boleia do express).
+- **O script de testes é exatamente `node --test`. Não lhe tocar.** Verificado empiricamente em 2026-07-16: `node --test test/` rebenta com `MODULE_NOT_FOUND` (o Node trata o caminho como módulo), e `node --test test/**/*.test.js` **sem aspas** larga em silêncio os testes na raiz de `test/` — o `npm` corre em `sh`, que não tem `globstar`, e expande o `**` para um só nível. O `node --test` sem argumentos descobre tudo recursivamente e não envolve o shell. Se mexeres nisto, prova com testes em `test/x.test.js` **e** `test/sub/y.test.js` ao mesmo tempo.
 - **Nunca commitar** `.env` nem `downloads/` — já cobertos pelo `.gitignore`.
 - **Datas** tratadas como strings `YYYY-MM-DD`, comparadas lexicograficamente. Sem objetos `Date`, sem aritmética de fusos.
 - **Intervalos inclusivos** nas duas pontas.
@@ -47,7 +48,7 @@ Arranca o projeto e o módulo que valida o `.env`. O `.env` real já existe na r
   "main": "src/server/index.js",
   "scripts": {
     "start": "node src/server/index.js",
-    "test": "node --test test/"
+    "test": "node --test"
   },
   "dependencies": {
     "axios": "^1.13.5",
