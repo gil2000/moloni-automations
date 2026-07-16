@@ -24,7 +24,18 @@ function criarDocuments(client) {
 
         while (true) {
             const pagina = await client.post(definicao.endpoint, { year: ano, qty: QTY, offset });
-            if (!Array.isArray(pagina) || pagina.length === 0) break;
+
+            // A API do Moloni responde HTTP 200 mesmo com corpo de erro. Parar em
+            // silêncio aqui devolveria os documentos já recolhidos como se fossem
+            // o ano completo — a contabilista receberia menos ficheiros e ninguém
+            // daria por isso. Mais vale rebentar e dizer porquê.
+            if (!Array.isArray(pagina)) {
+                throw new Error(
+                    `Resposta inesperada do Moloni em ${definicao.endpoint} ` +
+                    `(ano ${ano}, offset ${offset}): ${JSON.stringify(pagina)}`
+                );
+            }
+            if (pagina.length === 0) break; // fim legítimo
 
             todos.push(...pagina);
             aoProgredir({ tipo, ano, verificados: todos.length });

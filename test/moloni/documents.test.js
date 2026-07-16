@@ -39,10 +39,23 @@ test('para na página vazia', async () => {
     assert.strictEqual(docs.length, QTY);
 });
 
-test('trata resposta não-array como fim da paginação', async () => {
+// Um array vazio é fim legítimo. Qualquer outra coisa é a API a portar-se mal,
+// e tem de rebentar: parar em silêncio devolveria meia lista como se fosse o ano
+// inteiro, e ninguém daria por isso.
+test('rebenta com resposta inesperada em vez de a tratar como fim', async () => {
     const client = clientFalso([{ errors: 'qualquer coisa' }]);
-    const docs = await criarDocuments(client).listarPorAno('recibos', 2026);
-    assert.deepStrictEqual(docs, []);
+    await assert.rejects(
+        () => criarDocuments(client).listarPorAno('recibos', 2026),
+        /Resposta inesperada/
+    );
+});
+
+test('rebenta se a resposta inesperada vier a meio da paginação', async () => {
+    const client = clientFalso([paginaCheia(), { errors: 'boom' }]);
+    await assert.rejects(
+        () => criarDocuments(client).listarPorAno('recibos', 2026),
+        /Resposta inesperada/
+    );
 });
 
 test('reporta progresso por página', async () => {
