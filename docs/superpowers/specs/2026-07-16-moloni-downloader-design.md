@@ -198,6 +198,38 @@ abrir o browser. O Gil faz push; ela recebe no arranque seguinte.
 - **Volume desconhecido de faturas.** Os 935/mês são recibos. Não se sabe o volume de
   faturas e faturas-recibo — pode mudar a conta da lentidão.
 
+## Validado contra a API real em 2026-07-16
+
+Corrido `scripts/validar-tipos.js 2026` com as credenciais da ALLPRA:
+
+| tipo | documentos em 2026 | PDF |
+|---|---|---|
+| recibos | 5153 | OK, 235 KB |
+| faturas | 5224 | OK, 238 KB |
+| faturas-recibo | 347 | OK, 299 KB |
+
+**A suposição do `getPDFLink` confirma-se para os três tipos** — não é preciso cortar
+nenhum. O risco principal do projeto está fechado.
+
+Três factos observados que contradiziam este spec e obrigaram a corrigir o plano:
+
+1. **`document_type` não traz `name`.** Vem `{ document_type_id, saft_code }` — ex.:
+   `{"document_type_id":2,"saft_code":"RE"}`. A afirmação anterior deste spec, de que
+   `document_type.name` era a fonte de verdade do nome do ficheiro e podia variar por
+   empresa, era **falsa**: é sempre `undefined`, e o fallback é que sempre correu (no
+   script original também). O nome usa agora o `label` do `TIPOS` diretamente.
+2. **A `date` vem em ISO com fuso:** `"2026-07-16T00:00:00+0100"`, e não
+   `"YYYY-MM-DD HH:mm:ss"`. O `slice(0,7)`/`slice(0,10)` continua correto, e a decisão
+   de nunca usar objetos `Date` fica **provada**, não só justificada: meia-noite de 1
+   de julho em Lisboa é ainda 30 de junho em UTC, e um `new Date()` arrumaria o
+   documento no mês errado. Há testes a fixar isto.
+3. **`number` é numérico** (ex.: `2638`), não uma string com série.
+
+**Colisões de nome de ficheiro: medidas, zero.** Com o esquema
+`<label> <number> - <entidade>.pdf` dentro da pasta do ano-mês, os 10.717 documentos
+emitidos em 2026 (5153 + 5220 + 344) geram 10.717 caminhos únicos. O risco de um
+ficheiro sobrepor outro em silêncio não se materializa nestes dados.
+
 ## Fora de âmbito (decidido explicitamente)
 
 - ZIP no fim, folha de resumo CSV/Excel, subpastas por entidade — todos considerados e

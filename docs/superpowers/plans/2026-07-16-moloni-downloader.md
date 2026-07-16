@@ -758,7 +758,7 @@ module.exports = { criarPdf };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 24 testes.
+Expected: PASS — 25 testes.
 
 - [ ] **Step 5: Commit**
 
@@ -864,7 +864,7 @@ git commit -m "Valida os 3 tipos de documento contra a API real"
 - Consumes: `TIPOS` (Task 4).
 - Produces:
   - `sanitizar(nome: string): string`
-  - `bucketAnoMes(data: string): string` — `'2026-06-15 00:00:00'` → `'2026-06'`
+  - `bucketAnoMes(data: string): string` — `'2026-06-15T00:00:00+0100'` → `'2026-06'` (formato real do Moloni)
   - `nomeFicheiro(doc: object, tipo: string): string`
   - `caminhoDestino(baseDir: string, doc: object, tipo: string): string`
 
@@ -879,12 +879,19 @@ const assert = require('node:assert');
 const path = require('node:path');
 const { sanitizar, bucketAnoMes, nomeFicheiro, caminhoDestino } = require('../../src/download/ficheiros');
 
+// Forma REAL de um documento devolvido pelo getAll, observada contra a API em
+// 2026-07-16 (ver Task 6). Não inventar formatos aqui: `date` vem em ISO com
+// fuso, `number` é numérico, e `document_type` NÃO tem `name` — só
+// `{ document_type_id, saft_code }`.
 const doc = {
     document_id: 1,
-    number: 'FT 2026/123',
-    date: '2026-06-15 00:00:00',
+    number: 2652,
+    date: '2026-06-15T00:00:00+0100',
     entity_name: 'ACME Lda.',
-    document_type: { name: 'Fatura' },
+    entity_vat: '500123456',
+    entity_number: '500123456',
+    document_type: { document_type_id: 1, saft_code: 'FT' },
+    status: 1,
 };
 
 test('sanitizar troca caracteres inválidos de nome de ficheiro', () => {
@@ -895,29 +902,31 @@ test('sanitizar tira espaços das pontas', () => {
     assert.strictEqual(sanitizar('  nome  '), 'nome');
 });
 
-test('bucketAnoMes extrai ano-mês da data do Moloni', () => {
-    assert.strictEqual(bucketAnoMes('2026-06-15 00:00:00'), '2026-06');
-    assert.strictEqual(bucketAnoMes('2026-06-15'), '2026-06');
+test('bucketAnoMes extrai ano-mês do formato real do Moloni', () => {
+    assert.strictEqual(bucketAnoMes('2026-06-15T00:00:00+0100'), '2026-06');
 });
 
-test('nomeFicheiro usa o document_type.name da API', () => {
-    assert.strictEqual(nomeFicheiro(doc, 'faturas'), 'Fatura FT 2026-123 - ACME Lda..pdf');
+// Este teste guarda a razão de não usarmos objetos Date em lado nenhum.
+test('bucketAnoMes não é enganado pelo fuso horário do Moloni', () => {
+    // "2026-07-01T00:00:00+0100" é ainda 30 de junho em UTC. Fatiar a string
+    // dá julho — o mês que a contabilista vê no portal. new Date(...) daria
+    // junho e arrumava o documento na pasta errada.
+    assert.strictEqual(bucketAnoMes('2026-07-01T00:00:00+0100'), '2026-07');
 });
 
-test('nomeFicheiro cai no label do tipo se a API não der document_type', () => {
-    const semTipo = { ...doc, document_type: undefined };
-    assert.strictEqual(nomeFicheiro(semTipo, 'faturas'), 'Fatura FT 2026-123 - ACME Lda..pdf');
+test('nomeFicheiro usa o label do tipo', () => {
+    assert.strictEqual(nomeFicheiro(doc, 'faturas'), 'Fatura 2652 - ACME Lda..pdf');
 });
 
 test('nomeFicheiro cai no NIF quando não há nome de entidade', () => {
-    const semNome = { ...doc, entity_name: '' , entity_vat: '500123456' };
-    assert.strictEqual(nomeFicheiro(semNome, 'faturas'), 'Fatura FT 2026-123 - 500123456.pdf');
+    const semNome = { ...doc, entity_name: '' };
+    assert.strictEqual(nomeFicheiro(semNome, 'faturas'), 'Fatura 2652 - 500123456.pdf');
 });
 
 test('caminhoDestino arruma na pasta do ano-mês do próprio documento', () => {
     assert.strictEqual(
         caminhoDestino('/saida', doc, 'faturas'),
-        path.join('/saida', '2026-06', 'Fatura FT 2026-123 - ACME Lda..pdf')
+        path.join('/saida', '2026-06', 'Fatura 2652 - ACME Lda..pdf')
     );
 });
 ```
@@ -940,16 +949,19 @@ function sanitizar(nome) {
     return String(nome).replace(/[/\\?%*:|"<>]/g, '-').trim();
 }
 
-// As datas do Moloni vêm "YYYY-MM-DD" ou "YYYY-MM-DD HH:mm:ss".
-// Fatiar a string evita objetos Date e problemas de fuso.
+// As datas do Moloni vêm em ISO com fuso: "2026-07-16T00:00:00+0100".
+// Fatiar a string, em vez de usar new Date(), não é preguiça — é o que
+// mantém o documento no mês que a contabilista vê no portal. Meia-noite de
+// 1 de julho em Lisboa é ainda 30 de junho em UTC.
 function bucketAnoMes(data) {
     return String(data).slice(0, 7);
 }
 
 function nomeFicheiro(doc, tipo) {
-    // O document_type.name da API é a fonte de verdade — pode variar por
-    // empresa. O label do TIPOS é só rede de segurança.
-    const etiqueta = doc.document_type?.name || TIPOS[tipo]?.label || 'Documento';
+    // Verificado contra a API real (Task 6): o document_type devolvido pelo
+    // getAll é { document_type_id, saft_code } — não traz `name`. O label do
+    // TIPOS é a fonte de verdade, não um fallback.
+    const etiqueta = TIPOS[tipo]?.label || 'Documento';
     const entidade = doc.entity_name || doc.entity_vat || doc.entity_number || 'sem-entidade';
     return sanitizar(`${etiqueta} ${doc.number} - ${entidade}.pdf`);
 }
@@ -966,7 +978,7 @@ module.exports = { sanitizar, bucketAnoMes, nomeFicheiro, caminhoDestino };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 31 testes.
+Expected: PASS — 32 testes.
 
 - [ ] **Step 5: Commit**
 
@@ -1005,9 +1017,13 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { correrJob, anosAbrangidos, dentroDoIntervalo } = require('../../src/download/job');
 
-const doc = (id, date, extra = {}) => ({
-    document_id: id, number: `N${id}`, date, status: 1,
-    entity_name: `Cliente ${id}`, document_type: { name: 'Recibo' }, ...extra,
+// Forma REAL do getAll (ver Task 6): `date` em ISO com fuso, `number` numérico,
+// `document_type` sem `name`. A data recebida aqui é só "YYYY-MM-DD" por
+// comodidade do teste, e é completada com a hora e o fuso que o Moloni devolve.
+const doc = (id, dia, extra = {}) => ({
+    document_id: id, number: 1000 + id, date: `${dia}T00:00:00+0100`, status: 1,
+    entity_name: `Cliente ${id}`,
+    document_type: { document_type_id: 2, saft_code: 'RE' }, ...extra,
 });
 
 // deps que não tocam no disco nem esperam de verdade.
@@ -1027,10 +1043,18 @@ test('anosAbrangidos cobre o intervalo inteiro', () => {
 });
 
 test('dentroDoIntervalo é inclusivo nas duas pontas', () => {
-    assert.ok(dentroDoIntervalo('2026-06-01 00:00:00', '2026-06-01', '2026-06-30'));
-    assert.ok(dentroDoIntervalo('2026-06-30 23:59:59', '2026-06-01', '2026-06-30'));
-    assert.ok(!dentroDoIntervalo('2026-05-31', '2026-06-01', '2026-06-30'));
-    assert.ok(!dentroDoIntervalo('2026-07-01', '2026-06-01', '2026-06-30'));
+    // Formato real do Moloni: ISO com fuso.
+    assert.ok(dentroDoIntervalo('2026-06-01T00:00:00+0100', '2026-06-01', '2026-06-30'));
+    assert.ok(dentroDoIntervalo('2026-06-30T23:59:59+0100', '2026-06-01', '2026-06-30'));
+    assert.ok(!dentroDoIntervalo('2026-05-31T00:00:00+0100', '2026-06-01', '2026-06-30'));
+    assert.ok(!dentroDoIntervalo('2026-07-01T00:00:00+0100', '2026-06-01', '2026-06-30'));
+});
+
+// O primeiro dia do intervalo em hora de Lisboa é ainda o dia anterior em UTC.
+// Fatiar a string mantém o documento dentro do intervalo que a contabilista
+// pediu; converter para Date deixá-lo-ia de fora.
+test('dentroDoIntervalo não é enganado pelo fuso horário', () => {
+    assert.ok(dentroDoIntervalo('2026-07-01T00:00:00+0100', '2026-07-01', '2026-07-31'));
 });
 
 test('descarrega só os documentos dentro do intervalo', async () => {
@@ -1049,7 +1073,7 @@ test('descarrega só os documentos dentro do intervalo', async () => {
     assert.strictEqual(r.sucesso, 1);
     assert.strictEqual(deps.escritos.length, 1);
     assert.ok(deps.escritos[0].caminho.includes('2026-06'));
-    assert.ok(deps.escritos[0].caminho.includes('N2'));
+    assert.ok(deps.escritos[0].caminho.includes('1002'));
 });
 
 test('ignora rascunhos (status 0) — não têm PDF', async () => {
@@ -1083,7 +1107,7 @@ test('uma falha não mata o job e entra no relatório', async () => {
 
     assert.strictEqual(r.sucesso, 1);
     assert.strictEqual(r.falhas.length, 1);
-    assert.deepStrictEqual(r.falhas[0], { numero: 'N1', documentId: 1, motivo: 'boom' });
+    assert.deepStrictEqual(r.falhas[0], { numero: 1001, documentId: 1, motivo: 'boom' });
 });
 
 test('faz retry 3x antes de desistir de um documento', async () => {
@@ -1223,7 +1247,7 @@ module.exports = { correrJob, anosAbrangidos, dentroDoIntervalo };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 38 testes.
+Expected: PASS — 40 testes.
 
 - [ ] **Step 5: Commit**
 
@@ -1339,7 +1363,7 @@ module.exports = { validarPedido };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 43 testes.
+Expected: PASS — 45 testes.
 
 - [ ] **Step 5: Implementar o servidor**
 
@@ -1762,7 +1786,7 @@ Ambos estão no `.gitignore` — nunca os commitar.
 - [ ] **Step 5: Correr a suite completa**
 
 Run: `npm test`
-Expected: PASS — 43 testes, 0 falhas.
+Expected: PASS — 45 testes, 0 falhas.
 
 - [ ] **Step 6: Verificação ponta-a-ponta contra a API real**
 
