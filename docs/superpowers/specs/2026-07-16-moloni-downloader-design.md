@@ -230,6 +230,18 @@ Três factos observados que contradiziam este spec e obrigaram a corrigir o plan
 emitidos em 2026 (5153 + 5220 + 344) geram 10.717 caminhos únicos. O risco de um
 ficheiro sobrepor outro em silêncio não se materializa nestes dados.
 
+**Comprimento dos nomes: medido, com folga.** O nome mais longo dos 10.717 tem
+**106 bytes**; o limite do sistema de ficheiros é 255. Zero acima de 150. Zero
+entidades vazias, zero caracteres de controlo.
+
+Decisão consciente de **não** truncar nomes nem filtrar caracteres de controlo:
+uma revisão mostrou que um `entity_name` de ~300 caracteres daria `ENAMETOOLONG` e
+que um NUL daria `ERR_INVALID_ARG_VALUE`. Ambos são reais, mas: (a) não ocorrem
+nestes dados, com folga de 2,4×; (b) o `job.js` apanha erros **por documento** e
+regista-os no relatório de falhas — a contabilista veria "documento X falhou:
+ENAMETOOLONG", que é falha alta e visível, não perda silenciosa. Se um cliente
+futuro tiver nomes patológicos, o sintoma aparece no relatório e resolve-se então.
+
 ## Fora de âmbito (decidido explicitamente)
 
 - ZIP no fim, folha de resumo CSV/Excel, subpastas por entidade — todos considerados e
