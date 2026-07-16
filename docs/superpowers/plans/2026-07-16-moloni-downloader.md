@@ -314,7 +314,7 @@ module.exports = { criarAuth, BASE };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 9 testes no total.
+Expected: PASS — 10 testes no total.
 
 - [ ] **Step 5: Commit**
 
@@ -423,7 +423,7 @@ module.exports = { criarClient };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 11 testes.
+Expected: PASS — 12 testes.
 
 - [ ] **Step 5: Commit**
 
@@ -495,10 +495,23 @@ test('para na página vazia', async () => {
     assert.strictEqual(docs.length, QTY);
 });
 
-test('trata resposta não-array como fim da paginação', async () => {
+// Um array vazio é fim legítimo. Qualquer outra coisa é a API a portar-se mal,
+// e tem de rebentar: parar em silêncio devolveria meia lista como se fosse o ano
+// inteiro, e ninguém daria por isso.
+test('rebenta com resposta inesperada em vez de a tratar como fim', async () => {
     const client = clientFalso([{ errors: 'qualquer coisa' }]);
-    const docs = await criarDocuments(client).listarPorAno('recibos', 2026);
-    assert.deepStrictEqual(docs, []);
+    await assert.rejects(
+        () => criarDocuments(client).listarPorAno('recibos', 2026),
+        /Resposta inesperada/
+    );
+});
+
+test('rebenta se a resposta inesperada vier a meio da paginação', async () => {
+    const client = clientFalso([paginaCheia(), { errors: 'boom' }]);
+    await assert.rejects(
+        () => criarDocuments(client).listarPorAno('recibos', 2026),
+        /Resposta inesperada/
+    );
 });
 
 test('reporta progresso por página', async () => {
@@ -557,7 +570,18 @@ function criarDocuments(client) {
 
         while (true) {
             const pagina = await client.post(definicao.endpoint, { year: ano, qty: QTY, offset });
-            if (!Array.isArray(pagina) || pagina.length === 0) break;
+
+            // A API do Moloni responde HTTP 200 mesmo com corpo de erro. Parar em
+            // silêncio aqui devolveria os documentos já recolhidos como se fossem
+            // o ano completo — a contabilista receberia menos ficheiros e ninguém
+            // daria por isso. Mais vale rebentar e dizer porquê.
+            if (!Array.isArray(pagina)) {
+                throw new Error(
+                    `Resposta inesperada do Moloni em ${definicao.endpoint} ` +
+                    `(ano ${ano}, offset ${offset}): ${JSON.stringify(pagina)}`
+                );
+            }
+            if (pagina.length === 0) break; // fim legítimo
 
             todos.push(...pagina);
             aoProgredir({ tipo, ano, verificados: todos.length });
@@ -578,7 +602,7 @@ module.exports = { criarDocuments, TIPOS, QTY };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 17 testes.
+Expected: PASS — 19 testes.
 
 - [ ] **Step 5: Commit**
 
@@ -734,7 +758,7 @@ module.exports = { criarPdf };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 22 testes.
+Expected: PASS — 24 testes.
 
 - [ ] **Step 5: Commit**
 
@@ -942,7 +966,7 @@ module.exports = { sanitizar, bucketAnoMes, nomeFicheiro, caminhoDestino };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 29 testes.
+Expected: PASS — 31 testes.
 
 - [ ] **Step 5: Commit**
 
@@ -1199,7 +1223,7 @@ module.exports = { correrJob, anosAbrangidos, dentroDoIntervalo };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 36 testes.
+Expected: PASS — 38 testes.
 
 - [ ] **Step 5: Commit**
 
@@ -1315,7 +1339,7 @@ module.exports = { validarPedido };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 41 testes.
+Expected: PASS — 43 testes.
 
 - [ ] **Step 5: Implementar o servidor**
 
@@ -1738,7 +1762,7 @@ Ambos estão no `.gitignore` — nunca os commitar.
 - [ ] **Step 5: Correr a suite completa**
 
 Run: `npm test`
-Expected: PASS — 41 testes, 0 falhas.
+Expected: PASS — 43 testes, 0 falhas.
 
 - [ ] **Step 6: Verificação ponta-a-ponta contra a API real**
 
