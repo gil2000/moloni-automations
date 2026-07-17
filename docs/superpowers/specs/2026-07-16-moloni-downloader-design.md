@@ -113,6 +113,14 @@ saft_code }` e nunca traz `name` — logo o suposto fallback era o que sempre co
    têm PDF). O intervalo é **inclusivo nas duas pontas** — escolher `2026-06-01` a
    `2026-06-30` traz o mês de junho completo. O `date` do Moloni vem como
    `YYYY-MM-DD...`; compara-se pelos primeiros 10 caracteres, sem aritmética de fusos.
+
+   **Confirmado com dados reais (2026-07-17):** a regra é uma só e corre igual nos
+   três tipos, não há tratamento por tipo. A conta real da ALLPRA tem rascunhos em
+   faturas e faturas-recibo (1 de cada em 2026, ambos com `number: -1`) e são
+   corretamente ignorados. Existe também um terceiro estado, `status: 2` — não é
+   rascunho (número normal, PDF descarrega sem problema, provavelmente "pago" vs
+   "em aberto" dentro dos documentos já emitidos) — e a app já o trata como deve:
+   descarrega, porque é um documento fiscal válido. Só `status === 0` é excluído.
 5. Por cada documento: `getPDFLink` → segue o `downloadBtn` → valida `%PDF` → grava.
 6. Grava em `downloads/<Tipo>/<ano>-<mês do próprio documento>/<Tipo> <nº> - <entidade>.pdf`.
 
