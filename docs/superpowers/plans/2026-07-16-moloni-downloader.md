@@ -776,7 +776,7 @@ git commit -m "Download de PDF: sem signed, seguindo o downloadBtn"
 
 **Esta task não escreve código de produção — valida a maior suposição do desenho antes de se construir por cima dela.**
 
-Sabemos que o `getPDFLink` funciona para **recibos** (935 provados). Para **faturas** e **faturas-recibo** estamos a assumir que é igual. A cliente só pediu recibos, portanto se um destes falhar **corta-se e segue-se** — mas é preciso saber agora, não depois da UI construída.
+Sabemos que o `getPDFLink` funciona para **recibos** (provados em produção). Para **faturas** e **faturas-recibo** estamos a assumir que é igual. A cliente só pediu recibos, portanto se um destes falhar **corta-se e segue-se** — mas é preciso saber agora, não depois da UI construída.
 
 Requer o `.env` real preenchido na raiz.
 
@@ -1880,16 +1880,16 @@ Expected: PASS — 45 testes, 0 falhas.
 
 - [ ] **Step 6: Verificação ponta-a-ponta contra a API real**
 
-Arrancar com o launcher (`./"Descarregar Recibos.command"`), e no browser pedir **junho de 2026, só recibos** — o caso já provado (935 recibos, 0 falhas no script original).
+Arrancar com o launcher (`./"Descarregar Recibos.command"`), e no browser pedir **junho de 2026, só recibos** — o caso já provado (um mês inteiro, 0 falhas no script original).
 
 Confirmar, por esta ordem:
 1. A barra mostra a fase de listagem e depois a de download
-2. `ls downloads/2026-06/ | wc -l` → **935**
-3. `file downloads/2026-06/*.pdf | grep -c "PDF document"` → **935** (e não HTML — é aqui que a pegadinha nº2 se apanharia)
+2. `ls downloads/2026-06/ | wc -l` → **o número que o script original deu para esse mês**
+3. `file downloads/2026-06/*.pdf | grep -c "PDF document"` → **o mesmo número** (e não HTML — é aqui que a pegadinha nº2 se apanharia)
 4. Abrir um PDF à mão e confirmar que é o recibo certo
 5. O botão "Abrir pasta" abre o Finder
 
-Se o número não bater com 935, **parar e investigar** antes de commitar: ou o filtro de intervalo está errado, ou a paginação está a perder documentos.
+Se o número não bater com o do script original, **parar e investigar** antes de commitar: ou o filtro de intervalo está errado, ou a paginação está a perder documentos.
 
 - [ ] **Step 7: Commit**
 

@@ -8,3 +8,7 @@ downloads/
 
 .DS_Store
 .superpowers/
+
+# Contexto de trabalho do Gil — material para construir a app, não artefacto do
+# projeto. Contém volumes de negócio da ALLPRA e nunca deve ir para o repo.
+moloni-recibos-CONTEXTO.md

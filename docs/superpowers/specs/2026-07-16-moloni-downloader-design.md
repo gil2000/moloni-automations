@@ -6,11 +6,10 @@
 ## Problema
 
 O portal web do Moloni só permite descarregar PDFs de documentos um de cada vez. Com
-~900-1000 recibos por mês, a contabilista da ALLPRA gastava praticamente o tempo
-integral nisto.
+~1000 recibos por mês, isto ocupava grande parte do tempo da contabilista.
 
 Existe já um script Node que resolve o caso "recibos de um mês"
-(`izigo-express/izigo-backend/scripts/moloni-download-recibos.js`, testado com 935
+(`izigo-express/izigo-backend/scripts/moloni-download-recibos.js`, testado com um mês inteiro de
 recibos de junho/2026, 0 falhas). Este projeto generaliza-o numa aplicação:
 
 - utilizável por quem não abre um terminal (a contabilista),
@@ -113,7 +112,7 @@ certas.
 
 O `getAll` do Moloni **não tem filtro de intervalo de datas** — só `year`, ou `date`
 exata, ou `expiration_date` exata. Daí puxar o ano inteiro e filtrar do lado da app.
-Custo: ~220 pedidos por tipo/ano (~11k recibos/ano ÷ 50).
+Custo: ~220 pedidos por tipo/ano (~10 mil documentos/ano ÷ 50).
 
 ## As duas pegadinhas do `getPDFLink` (não regredir)
 
@@ -195,18 +194,18 @@ abrir o browser. O Gil faz push; ela recebe no arranque seguinte.
   É a expectativa (o endpoint é o mesmo), mas só está provado para recibos. Validar
   cedo, com um documento real de cada tipo. **Risco contido:** como a cliente só quer
   recibos, se um destes tipos não funcionar, corta-se — não bloqueia a entrega.
-- **Volume desconhecido de faturas.** Os 935/mês são recibos. Não se sabe o volume de
+- **Volume desconhecido de faturas.** Esse volume mensal é de recibos. Não se sabe o volume de
   faturas e faturas-recibo — pode mudar a conta da lentidão.
 
 ## Validado contra a API real em 2026-07-16
 
 Corrido `scripts/validar-tipos.js 2026` com as credenciais da ALLPRA:
 
-| tipo | documentos em 2026 | PDF |
+| tipo | documentos num ano | PDF |
 |---|---|---|
-| recibos | 5153 | OK, 235 KB |
-| faturas | 5224 | OK, 238 KB |
-| faturas-recibo | 347 | OK, 299 KB |
+| recibos | alguns milhares | OK |
+| faturas | alguns milhares | OK |
+| faturas-recibo | algumas centenas | OK |
 
 **A suposição do `getPDFLink` confirma-se para os três tipos** — não é preciso cortar
 nenhum. O risco principal do projeto está fechado.
@@ -226,11 +225,11 @@ Três factos observados que contradiziam este spec e obrigaram a corrigir o plan
 3. **`number` é numérico** (ex.: `2638`), não uma string com série.
 
 **Colisões de nome de ficheiro: medidas, zero.** Com o esquema
-`<label> <number> - <entidade>.pdf` dentro da pasta do ano-mês, os 10.717 documentos
-emitidos em 2026 (5153 + 5220 + 344) geram 10.717 caminhos únicos. O risco de um
+`<label> <number> - <entidade>.pdf` dentro da pasta do ano-mês, os ~10 mil documentos
+emitidos num ano geram o mesmo número de caminhos únicos. O risco de um
 ficheiro sobrepor outro em silêncio não se materializa nestes dados.
 
-**Comprimento dos nomes: medido, com folga.** O nome mais longo dos 10.717 tem
+**Comprimento dos nomes: medido, com folga.** O nome mais longo de ~10 mil tem
 **106 bytes**; o limite do sistema de ficheiros é 255. Zero acima de 150. Zero
 entidades vazias, zero caracteres de controlo.
 
@@ -244,10 +243,9 @@ futuro tiver nomes patológicos, o sintoma aparece no relatório e resolve-se en
 
 ## Verificado ponta-a-ponta em 2026-07-17
 
-Pedido junho/2026, só recibos, pela UI — o caso que o script original fez com 935
-recibos e 0 falhas.
+Pedido junho/2026, só recibos, pela UI — o caso que o script original fez com um mês inteiro de recibos e 0 falhas.
 
-- **A listagem completou-se: 935 recibos.** Igual ao script original. Prova a
+- **A listagem completou-se, com o número exato que o script original dá.** Igual ao script original. Prova a
   paginação (19 páginas de 50) e o filtro de intervalo contra uma referência
   conhecida — se perdesse ou duplicasse documentos, o número não batia.
 - **278 PDFs descarregados antes de parar** (parou-se de propósito; não valia a
@@ -256,7 +254,7 @@ recibos e 0 falhas.
   em testes com HTTP mockado.
 - Os PDFs foram apagados a seguir — eram dados fiscais reais de clientes.
 
-**O que isto não prova:** que os 935 todos passariam. Mas 278 consecutivos sem uma
+**O que isto não prova:** que todos passariam. Mas 278 consecutivos sem uma
 única falha, com o mesmo mecanismo para todos, é evidência forte.
 
 ## Requisitos e onboarding (2026-07-17)
