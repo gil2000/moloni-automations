@@ -23,10 +23,16 @@ function nomeFicheiro(doc, tipo) {
     return sanitizar(`${etiqueta} ${doc.number} - ${entidade}.pdf`);
 }
 
-// Cada documento vai para a pasta do seu próprio mês, e não do intervalo
-// pedido — assim um intervalo que atravessa meses arruma-se sozinho.
+// Cada tipo tem o seu ramo, e dentro dele cada documento vai para a pasta do
+// seu próprio mês — não do intervalo pedido. Assim um intervalo que atravessa
+// meses arruma-se sozinho.
+//
+// Tipo antes do mês foi escolha do Gil, a usar: procura mais por tipo do que
+// por mês. Antes era só o mês, e descarregar recibos e faturas do mesmo período
+// despejava tudo na mesma pasta.
 function caminhoDestino(baseDir, doc, tipo) {
-    return path.join(baseDir, bucketAnoMes(doc.date), nomeFicheiro(doc, tipo));
+    const pasta = TIPOS[tipo]?.pasta || 'Documentos';
+    return path.join(baseDir, pasta, bucketAnoMes(doc.date), nomeFicheiro(doc, tipo));
 }
 
 module.exports = { sanitizar, bucketAnoMes, nomeFicheiro, caminhoDestino };

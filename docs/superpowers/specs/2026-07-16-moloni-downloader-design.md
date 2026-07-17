@@ -39,7 +39,7 @@ recibos de junho/2026, 0 falhas). Este projeto generaliza-o numa aplicação:
 | Não alojar no VPS | Poria credenciais Moloni e PDFs fiscais de clientes terceiros a atravessar o servidor do Gil. Responsabilidade (RGPD) que o projeto não quer. |
 | Updates via `git pull` no arranque | Dá o requisito a custo quase zero e não fecha a porta ao Electron. É fita-cola assumida. |
 | Sem cache de listagens (v1) | Otimização de uma lentidão ainda não medida. Ver "Riscos". |
-| Pasta plana por ano-mês | Considerou-se subpastas por entidade, mas com ~900 docs/mês dava ~900 pastas de 1 ficheiro. O nome do ficheiro já inclui a entidade. |
+| Pastas por tipo, e mês dentro | `downloads/Recibos/2026-06/`. A v1 era plana por ano-mês; a usar, o Gil viu recibos e faturas do mesmo mês despejados na mesma pasta e pediu a separação. Tipo antes do mês foi escolha dele: procura mais por tipo do que por mês. Subpastas por entidade foram consideradas e rejeitadas — com ~900 docs/mês dava ~900 pastas de 1 ficheiro, e o nome já inclui a entidade. |
 | Um job de cada vez | A contabilista não lança dois. Serializar elimina estado partilhado. |
 
 ## Arquitetura
@@ -103,7 +103,7 @@ facto, que pode variar por empresa.
    `2026-06-30` traz o mês de junho completo. O `date` do Moloni vem como
    `YYYY-MM-DD...`; compara-se pelos primeiros 10 caracteres, sem aritmética de fusos.
 5. Por cada documento: `getPDFLink` → segue o `downloadBtn` → valida `%PDF` → grava.
-6. Grava em `downloads/<ano>-<mês do próprio documento>/<Tipo> <nº> - <entidade>.pdf`.
+6. Grava em `downloads/<Tipo>/<ano>-<mês do próprio documento>/<Tipo> <nº> - <entidade>.pdf`.
 
 O passo 6 faz com que um intervalo que atravessa meses se arrume sozinho nas pastas
 certas.

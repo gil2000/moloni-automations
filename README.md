@@ -17,7 +17,7 @@ fecha-a para terminar a aplicação.
 Um mês de recibos demora ~10-15 minutos. A barra fica parada durante os
 primeiros minutos enquanto procura os documentos — é normal.
 
-Os PDFs ficam em `downloads/<ano>-<mês>/`.
+Os PDFs ficam em `downloads/<Tipo>/<ano>-<mês>/` — ex.: `downloads/Recibos/2026-06/`.
 
 ## Instalar num PC novo
 

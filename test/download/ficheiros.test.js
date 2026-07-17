@@ -48,9 +48,28 @@ test('nomeFicheiro cai no NIF quando não há nome de entidade', () => {
     assert.strictEqual(nomeFicheiro(semNome, 'faturas'), 'Fatura 2652 - 500123456.pdf');
 });
 
-test('caminhoDestino arruma na pasta do ano-mês do próprio documento', () => {
+test('caminhoDestino separa por tipo e depois pelo ano-mês do próprio documento', () => {
     assert.strictEqual(
         caminhoDestino('/saida', doc, 'faturas'),
-        path.join('/saida', '2026-06', 'Fatura 2652 - ACME Lda..pdf')
+        path.join('/saida', 'Faturas', '2026-06', 'Fatura 2652 - ACME Lda..pdf')
     );
+});
+
+// Descarregar recibos e faturas do mesmo mês despejava tudo na mesma pasta.
+// Cada tipo tem de ficar no seu ramo, mesmo partilhando o mês.
+test('tipos diferentes do mesmo mês não se misturam', () => {
+    const recibo = { ...doc, document_type: { document_type_id: 2, saft_code: 'RE' } };
+    const cRecibo = caminhoDestino('/saida', recibo, 'recibos');
+    const cFatura = caminhoDestino('/saida', doc, 'faturas');
+
+    assert.ok(cRecibo.includes(path.join('Recibos', '2026-06')));
+    assert.ok(cFatura.includes(path.join('Faturas', '2026-06')));
+    assert.notStrictEqual(path.dirname(cRecibo), path.dirname(cFatura));
+});
+
+test('os três tipos têm pasta própria', () => {
+    const caminhos = ['recibos', 'faturas', 'faturasRecibo']
+        .map(t => caminhoDestino('/saida', doc, t));
+    const pastas = caminhos.map(c => c.split(path.sep)[2]);
+    assert.deepStrictEqual(pastas, ['Recibos', 'Faturas', 'Faturas-Recibo']);
 });

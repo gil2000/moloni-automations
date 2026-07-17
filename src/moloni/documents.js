@@ -5,10 +5,12 @@
 // O `label` é a fonte de verdade do nome do ficheiro: o document_type que a
 // API devolve por documento é { document_type_id, saft_code } — nunca traz
 // `name`. Ver ficheiros.js.
+// `label` vai no nome do ficheiro (singular: "Recibo 2638 - ACME.pdf").
+// `pasta` é o ramo onde o tipo é arrumado (plural: "Recibos/2026-06/").
 const TIPOS = {
-    recibos:       { endpoint: 'receipts/getAll',        label: 'Recibo' },
-    faturas:       { endpoint: 'invoices/getAll',        label: 'Fatura' },
-    faturasRecibo: { endpoint: 'invoiceReceipts/getAll', label: 'Fatura-Recibo' },
+    recibos:       { endpoint: 'receipts/getAll',        label: 'Recibo',        pasta: 'Recibos' },
+    faturas:       { endpoint: 'invoices/getAll',        label: 'Fatura',        pasta: 'Faturas' },
+    faturasRecibo: { endpoint: 'invoiceReceipts/getAll', label: 'Fatura-Recibo', pasta: 'Faturas-Recibo' },
 };
 
 const QTY = 50; // máximo aceite pelo Moloni
