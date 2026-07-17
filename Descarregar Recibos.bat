@@ -2,6 +2,20 @@
 REM Atalho para a contabilista. Duplo-clique no Explorador.
 cd /d "%~dp0"
 
+REM Sem isto, uma maquina sem Node dava "npm nao e reconhecido" — que para ela
+REM nao quer dizer nada, e nao sugere sequer a quem ligar.
+where npm >nul 2>nul
+if errorlevel 1 (
+    echo.
+    echo   O Node.js nao esta instalado nesta maquina, e a aplicacao precisa dele.
+    echo   Isto nao e nada que tenhas feito mal — falta instalar uma peca.
+    echo.
+    echo   Liga ao Gil, ou instala em: https://nodejs.org ^(versao LTS^)
+    echo.
+    pause
+    exit /b 1
+)
+
 REM Ver o comentario equivalente no launcher de macOS: fechar esta janela mata
 REM o servidor a meio do download.
 echo.

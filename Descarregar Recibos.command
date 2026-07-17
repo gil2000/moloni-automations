@@ -2,6 +2,22 @@
 # Atalho para a contabilista. Duplo-clique no Finder.
 cd "$(dirname "$0")" || exit 1
 
+# O Node vem primeiro: sem ele não há app, e não faz sentido avisá-la para não
+# fechar uma janela que não vai descarregar nada.
+# Sem isto, uma máquina sem Node dava "npm: command not found" — que para ela
+# não quer dizer nada, e não sugere sequer a quem ligar.
+if ! command -v npm > /dev/null 2>&1; then
+    echo ""
+    echo "  O Node.js não está instalado nesta máquina, e a aplicação precisa dele."
+    echo "  Isto não é nada que tenhas feito mal — falta instalar uma peça."
+    echo ""
+    echo "  Liga ao Gil, ou instala em: https://nodejs.org (versão LTS)"
+    echo ""
+    echo "  Carrega em Enter para fechar."
+    read -r _
+    exit 1
+fi
+
 # Ela vai pensar que "a app é o browser" e fechar esta janela — e isso mata o
 # servidor a meio do download, sem explicação nenhuma. Este aviso é a única
 # coisa que o impede.

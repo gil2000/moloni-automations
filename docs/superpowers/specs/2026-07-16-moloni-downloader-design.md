@@ -259,6 +259,39 @@ recibos e 0 falhas.
 **O que isto não prova:** que os 935 todos passariam. Mas 278 consecutivos sem uma
 única falha, com o mesmo mecanismo para todos, é evidência forte.
 
+## Requisitos e onboarding (2026-07-17)
+
+Os requisitos (Node 20+, git) existiam só como prosa no README — nada os verificava.
+Sem Node, o launcher dava `npm: command not found`, que para a contabilista é grego.
+
+**A decisão estratégica, que importa mais do que o código:** com 100 clientes, a
+solução **não** é verificar melhor os requisitos. Um verificador que diz "instala o
+Node 20" a 100 pessoas não-técnicas são 100 chamadas. A saída é **empacotar** a app
+num executável (`bun build --compile` ou Electron) e a classe de problema desaparece:
+duplo-clique, sem Node, sem git.
+
+Por isso **não** se construiu onboarding self-service: é caro e deitava-se fora no
+empacotamento. Construiu-se o que serve o Gil hoje e continua útil depois:
+
+- **`npm run verificar`** — corre-se no onboarding, antes de sair de casa do cliente.
+  Verifica por ordem, parando no primeiro problema: versão do Node → dependências →
+  `.env` completo (diz *quais* faltam) → autenticação → download de um PDF de cada
+  tipo.
+- **`engines: { node: ">=20" }`** no `package.json`.
+- **Os launchers verificam o Node** antes de tudo, e dizem-lhe a quem ligar.
+
+**Descoberta ao construir isto:** o `/grant/` do Moloni responde 400 com um corpo
+estruturado que diz qual credencial está errada — `invalid_grant` para
+username/password, `invalid_client` para client_id/secret. Estávamos a deitar isso
+fora: password errada (o erro mais provável de um onboarding) aparecia como
+`Request failed with status code 400`, e a contabilista veria o mesmo na UI se as
+credenciais mudassem. O `auth.js` traduz agora esses erros, mas **deixa passar
+erros de rede intactos** — é deles que o retry do `job.js` vive, e disfarçá-los de
+erro de credenciais mandaria procurar no sítio errado.
+
+**Quando empacotar:** quando ir lá instalar deixar de ser viável. Aí o `verificar`
+continua útil como diagnóstico, mas deixa de ser o portão.
+
 ## Por fazer — depende do Gil
 
 **O auto-update ainda não funciona.** O remote `github.com/gil2000/moloni-automations`

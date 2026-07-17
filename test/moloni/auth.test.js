@@ -67,6 +67,54 @@ test('pede token novo dentro da margem de 60 segundos antes de expirar', async (
     assert.strictEqual(await auth.getToken(), 'tok-2');
 });
 
+// O Moloni responde 400 com um corpo que diz exatamente qual credencial está
+// errada. Sem traduzir isto, quem instala (e a contabilista, na UI) via só
+// "Request failed with status code 400" e não sabia onde procurar.
+test('diz que são o username/password quando o Moloni responde invalid_grant', async () => {
+    nock('https://api.moloni.pt').post('/v1/grant/').query(true).reply(400, {
+        error: 'invalid_grant',
+        error_description: 'Invalid username and password combination',
+    });
+
+    const auth = criarAuth(config);
+    await assert.rejects(() => auth.getToken(), /MOLONI_USERNAME ou MOLONI_PASSWORD/);
+});
+
+test('diz que são o client_id/secret quando o Moloni responde invalid_client', async () => {
+    nock('https://api.moloni.pt').post('/v1/grant/').query(true).reply(400, {
+        error: 'invalid_client',
+        error_description: 'The client credentials are invalid',
+    });
+
+    const auth = criarAuth(config);
+    await assert.rejects(() => auth.getToken(), /MOLONI_CLIENT_ID ou MOLONI_CLIENT_SECRET/);
+});
+
+test('mostra a descrição do Moloni para erros de auth que não conhecemos', async () => {
+    nock('https://api.moloni.pt').post('/v1/grant/').query(true).reply(400, {
+        error: 'algo_novo',
+        error_description: 'Uma razão que ainda não vimos',
+    });
+
+    const auth = criarAuth(config);
+    await assert.rejects(() => auth.getToken(), /Uma razão que ainda não vimos/);
+});
+
+// Erros de rede têm de continuar a passar intactos: é deles que o retry do
+// job.js vive. Se os transformássemos em erros de credenciais, uma falha
+// passageira de rede mandaria o Gil verificar o .env sem razão nenhuma.
+test('deixa passar erros de rede sem os disfarçar de credenciais', async () => {
+    nock('https://api.moloni.pt').post('/v1/grant/').query(true)
+        .replyWithError({ code: 'ECONNRESET', message: 'socket hang up' });
+
+    const auth = criarAuth(config);
+    await assert.rejects(() => auth.getToken(), err => {
+        assert.ok(!/MOLONI_USERNAME|MOLONI_CLIENT_ID/.test(err.message),
+            'não devia culpar as credenciais: ' + err.message);
+        return true;
+    });
+});
+
 test('lança erro quando a resposta não traz access_token', async () => {
     nock('https://api.moloni.pt').post('/v1/grant/').query(true)
         .reply(200, { error: 'invalid_grant' });

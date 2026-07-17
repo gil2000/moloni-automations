@@ -29,11 +29,16 @@ npm install
 cp .env.example .env   # preencher com as credenciais Moloni do cliente
 ```
 
-Confirmar que funciona antes de entregar:
+**Antes de sair de lá, correr:**
 
 ```bash
-node scripts/validar-tipos.js
+npm run verificar
 ```
+
+Verifica, por ordem e parando no primeiro problema: versão do Node, dependências
+instaladas, `.env` completo (diz **quais** variáveis faltam), autenticação no
+Moloni (distingue username/password errados de client_id/secret errados), e o
+download de um PDF de cada tipo. Se isto passa, a app funciona.
 
 Depois, criar um atalho do launcher no ambiente de trabalho.
 
@@ -46,8 +51,8 @@ instalada.
 ## Desenvolver
 
 ```bash
-npm test                       # testes unitários
-node scripts/validar-tipos.js  # diagnóstico contra a API real
+npm test           # testes unitários
+npm run verificar  # diagnóstico contra a API real
 ```
 
 Desenho e decisões: `docs/superpowers/specs/2026-07-16-moloni-downloader-design.md`
