@@ -325,6 +325,42 @@ vez do que incomoda mesmo, é como se paga complexidade a troco de nada.
 Isto substitui, em prioridade, a ideia da cache de listagens que estava nos "Riscos":
 a cache só ajuda em repetições; isto ajuda logo à primeira.
 
+## O launcher é código escrito às cegas (2026-07-17)
+
+Três bugs seguidos, todos no launcher, todos só visíveis em Windows, **nenhum**
+apanhado pelos 59 testes, por quatro revisões, ou por um ensaio de clone limpo em
+macOS. Cada um custou uma ida ao PC de teste:
+
+1. **`npm` sem `call` num `.bat`.** No Windows o `npm` é ele próprio um ficheiro
+   batch. Um `.bat` que chama outro sem `call` transfere o controlo e nunca volta:
+   o `npm install` corria, o script acabava ali, e o `npm start` nunca arrancava. A
+   janela abria e fechava-se. Agravado por não haver `pause` no fim — o erro
+   desaparecia com a janela.
+2. **`git pull` contra o lockfile sujo.** O `npm install` reescreve o
+   `package-lock.json` para a plataforma local. A partir daí, qualquer update que
+   toque no lockfile faz o pull abortar — e como o launcher engole o erro para não
+   impedir o arranque, **os updates morriam em silêncio em todas as máquinas de
+   clientes**, sem ninguém saber. Causa raiz de desenho: tratou-se a máquina do
+   cliente como um repo normal, quando é um espelho só-de-leitura. Corrigido com
+   `fetch` + `reset --hard`.
+3. **PowerShell com aspas dentro de aspas.** O `.bat` tentava abrir o browser com
+   polling dentro de um `start /b`. Nunca funcionou.
+
+**A lição, que vale mais do que os três bugs:** o launcher é a única parte do
+projeto que não se consegue testar de onde se desenvolve. Tudo o que lá vive é
+escrito às cegas.
+
+A resposta ao nº3 foi tirar-lhe trabalho: **o servidor abre o browser sozinho**, no
+callback do `app.listen`. Quem sabe quando o servidor está pronto é o servidor; o
+launcher só podia adivinhar, e essa adivinhação tinha de ser escrita duas vezes (bash
+e PowerShell). Os launchers ficaram com o mínimo: verificar o Node, atualizar,
+arrancar.
+
+**Isto é o argumento a sério para empacotar em `.exe`** — mais forte do que a
+conveniência de não instalar Node. O Electron faz a categoria inteira desaparecer:
+sem `.bat`, sem `npm`, sem git, sem browser, sem "não feches esta janela". Não é por
+ser mais bonito: é para deixar de haver código que só se testa por interposta pessoa.
+
 ## Por fazer — depende do Gil
 
 **O auto-update ainda não funciona.** O remote `github.com/gil2000/moloni-automations`
