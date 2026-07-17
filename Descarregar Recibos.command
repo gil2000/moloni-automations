@@ -30,9 +30,20 @@ echo "  +--------------------------------------------------+"
 echo ""
 
 echo "A verificar atualizações..."
-# Um update falhado nunca impede a app de abrir — arranca-se com o que há.
-# Nada de "AVISO": para ela não há aqui nada a fazer, e a palavra só assusta.
-if git pull --quiet 2>/dev/null && npm install --silent --no-audit --no-fund 2>/dev/null; then
+# Esta máquina é um espelho só-de-leitura do repo, não um sítio onde se
+# desenvolve. Nada aqui deve ter alterações locais — e se tiver, deitam-se fora.
+#
+# Porque "reset --hard" e não "git pull": o npm install reescreve o
+# package-lock.json (ajusta-o às dependências opcionais de cada plataforma), o
+# que suja a árvore. A partir daí o "git pull" recusa-se a funcionar — para
+# sempre — com "local changes would be overwritten". Como o launcher engole o
+# erro para não impedir o arranque, os updates morriam em SILÊNCIO em todas as
+# máquinas de clientes. Apanhado num teste real em Windows.
+#
+# Um update falhado nunca impede a app de abrir: arranca-se com o que há.
+if git fetch --quiet origin 2>/dev/null \
+   && git reset --hard --quiet origin/main 2>/dev/null \
+   && npm install --silent --no-audit --no-fund 2>/dev/null; then
     echo "Atualizado."
 else
     echo "Não foi possível verificar atualizações. A abrir a versão instalada."

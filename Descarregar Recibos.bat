@@ -32,11 +32,21 @@ echo   ^|  No fim, fecha-a para terminar a aplicacao.       ^|
 echo   +--------------------------------------------------+
 echo.
 
+REM Esta maquina e um espelho so-de-leitura do repo, nao um sitio onde se
+REM desenvolve. Nada aqui deve ter alteracoes locais — e se tiver, deitam-se fora.
+REM
+REM Porque "reset --hard" e nao "git pull": o npm install reescreve o
+REM package-lock.json (ajusta-o as dependencias opcionais de cada plataforma), o
+REM que suja a arvore. A partir dai o "git pull" recusa-se a funcionar — para
+REM sempre — com "local changes would be overwritten". Como o launcher engole o
+REM erro para nao impedir o arranque, os updates morriam em SILENCIO em todas as
+REM maquinas de clientes. Apanhado num teste real em Windows.
 echo A verificar atualizacoes...
-git pull --quiet >nul 2>nul
+git fetch --quiet origin >nul 2>nul
 if errorlevel 1 (
     echo Nao foi possivel verificar atualizacoes. A abrir a versao instalada.
 ) else (
+    git reset --hard --quiet origin/main >nul 2>nul
     call npm install --silent --no-audit --no-fund >nul 2>nul
     echo Atualizado.
 )
