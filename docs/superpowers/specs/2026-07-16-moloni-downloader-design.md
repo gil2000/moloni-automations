@@ -1,7 +1,12 @@
 # Moloni Downloader — app local de download em massa de documentos
 
 **Data:** 2026-07-16
-**Estado:** desenho aprovado, por implementar
+**Estado:** implementado, verificado contra a API real, em teste.
+
+> Este documento cresceu com o projeto. As secções iniciais são o desenho tal como
+> foi pensado; as do fim registam o que a realidade corrigiu — e são essas que
+> mandam quando se contradizerem. Ver "Validado contra a API real" e "O launcher é
+> código escrito às cegas".
 
 ## Problema
 
@@ -77,19 +82,23 @@ Configuração, não código:
 
 ```js
 const TIPOS = {
-  recibos:       { endpoint: 'receipts/getAll',        label: 'Recibo' },
-  faturas:       { endpoint: 'invoices/getAll',        label: 'Fatura' },
-  faturasRecibo: { endpoint: 'invoiceReceipts/getAll', label: 'Fatura-Recibo' },
+  recibos:       { endpoint: 'receipts/getAll',        label: 'Recibo',        pasta: 'Recibos' },
+  faturas:       { endpoint: 'invoices/getAll',        label: 'Fatura',        pasta: 'Faturas' },
+  faturasRecibo: { endpoint: 'invoiceReceipts/getAll', label: 'Fatura-Recibo', pasta: 'Faturas-Recibo' },
 };
 ```
 
 A paginação e o `getPDFLink` são idênticos nos três. Se algum se portar mal, isola-se
 ali sem tocar no resto.
 
-O `label` é **fallback**, não a fonte de verdade: o nome do ficheiro usa o
-`document_type.name` que a API devolve por documento (como o script atual já faz), e
-só cai no `label` se vier vazio. Assim o ficheiro fica com o nome que o Moloni usa de
-facto, que pode variar por empresa.
+O `label` vai no nome do ficheiro (singular: `Recibo 2638 - ACME.pdf`); a `pasta` é o
+ramo onde o tipo é arrumado (plural: `Recibos/2026-06/`).
+
+**Correção:** uma versão anterior deste spec dizia que o `label` era só um fallback, e
+que a fonte de verdade era o `document_type.name` devolvido pela API, que "podia variar
+por empresa". **É falso.** O `document_type` do `getAll` é `{ document_type_id,
+saft_code }` e nunca traz `name` — logo o suposto fallback era o que sempre corria. O
+`label` é a fonte de verdade. Ver "Validado contra a API real".
 
 ## Fluxo
 
