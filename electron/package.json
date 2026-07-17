@@ -4,6 +4,7 @@
   "private": true,
   "description": "Casca Electron do Moloni Downloader — o motor (src/moloni, src/download, src/server) é partilhado com a versão web e vive fora desta pasta.",
   "main": "main.js",
+  "author": "ALLPRA",
   "scripts": {
     "start": "electron .",
     "build:win": "electron-builder --win --publish never"
@@ -20,9 +21,11 @@
     },
     "files": [
       "main.js",
-      "package.json",
-      "../src/**/*",
-      "../node_modules/**/*"
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "../src", "to": "src" },
+      { "from": "../node_modules", "to": "node_modules" }
     ],
     "win": {
       "target": "nsis"

@@ -1,8 +1,20 @@
 'use strict';
 const path = require('path');
 const { app, BrowserWindow } = require('electron');
+
 // O motor é o mesmo da versão web — nada aqui é copiado, é o mesmo ficheiro.
-const { criarServidor } = require('../src/server/index.js');
+// Em desenvolvimento vive em ../src (irmã de electron/), mas dentro dum
+// pacote empacotado essa relação deixa de existir: o electron-builder ignora
+// em silêncio padrões de `files` que saem da pasta base, por isso src/ e
+// node_modules/ são copiados à parte via `extraResources` para dentro de
+// Resources/ (fora do asar), e é aí que se procuram quando empacotado.
+// require('express') dentro de src/server/index.js continua a resolver-se
+// sozinho: o Node sobe a árvore a partir do ficheiro físico até encontrar
+// Resources/node_modules, que fica ao lado de Resources/src.
+const caminhoMotor = app.isPackaged
+    ? path.join(process.resourcesPath, 'src', 'server', 'index.js')
+    : path.join(__dirname, '..', 'src', 'server', 'index.js');
+const { criarServidor } = require(caminhoMotor);
 
 let janelaPrincipal = null;
 let fecharServidor = null;
