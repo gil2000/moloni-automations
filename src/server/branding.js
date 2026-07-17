@@ -2,33 +2,36 @@
 const fs = require('fs');
 const path = require('path');
 
-// Os logos vivem em ficheiros, não no código: cada cliente tem os seus e não é
-// preciso um fork nem um `if` por empresa. Sem ficheiros, a app não mostra nada
-// e fica igual ao que era.
+// Dois logos, com naturezas diferentes:
+//
+//   fornecedor — a ALLPRA. É sempre o mesmo, seja quem for o cliente, por isso
+//                vive no repo (src/ui/) e chega a todas as instalações pelo
+//                git pull. Não é configurável de propósito.
+//   cliente    — varia por instalação. Vive em branding/, fora do repo, como o
+//                .env. Sem ficheiro, não aparece.
+//
+// É esta divisão que permite um binário único quando isto for empacotado: o
+// que muda por cliente são ficheiros ao lado, não o executável.
 const EXTENSOES = ['.png', '.svg', '.jpg', '.jpeg', '.webp'];
-const POSICOES = ['esquerda', 'direita'];
 
-// Recebe o fs por injeção para os testes não precisarem de ficheiros a sério.
-function encontrarLogos(dir, sistema = fs) {
-    const encontrados = {};
-
-    for (const posicao of POSICOES) {
-        encontrados[posicao] = null;
-        for (const ext of EXTENSOES) {
-            const ficheiro = `logo-${posicao}${ext}`;
-            try {
-                if (sistema.existsSync(path.join(dir, ficheiro))) {
-                    encontrados[posicao] = `/branding/${ficheiro}`;
-                    break;
-                }
-            } catch {
-                // Pasta inexistente ou sem permissões: o branding é opcional,
-                // nunca deve impedir a app de arrancar.
-            }
+function primeiroQueExiste(dir, base, urlBase, sistema) {
+    for (const ext of EXTENSOES) {
+        try {
+            if (sistema.existsSync(path.join(dir, base + ext))) return `${urlBase}/${base}${ext}`;
+        } catch {
+            // Pasta inexistente ou sem permissões: o branding é decoração e
+            // nunca pode impedir a contabilista de descarregar os recibos.
+            return null;
         }
     }
-
-    return encontrados;
+    return null;
 }
 
-module.exports = { encontrarLogos, EXTENSOES, POSICOES };
+function encontrarLogos({ dirFornecedor, dirCliente }, sistema = fs) {
+    return {
+        fornecedor: primeiroQueExiste(dirFornecedor, 'logo-fornecedor', '', sistema),
+        cliente: primeiroQueExiste(dirCliente, 'logo-cliente', '/branding', sistema),
+    };
+}
+
+module.exports = { encontrarLogos, EXTENSOES };

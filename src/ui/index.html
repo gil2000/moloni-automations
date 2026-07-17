@@ -101,15 +101,16 @@ function mostrarErro(msg) {
   $('fim').value = iso(hoje);
 })();
 
-// Logos, se existirem em branding/. Uma instalação sem eles não mostra
-// cabeçalho nenhum — o branding nunca pode ser o motivo de a app não abrir.
-fetch('/api/branding').then(r => r.json()).then(({ esquerda, direita }) => {
-  if (!esquerda && !direita) return;
+// ALLPRA à esquerda (o fornecedor, sempre o mesmo), o cliente à direita.
+// Uma instalação sem logos não mostra cabeçalho nenhum — o branding nunca pode
+// ser o motivo de a app não abrir.
+fetch('/api/branding').then(r => r.json()).then(({ fornecedor, cliente }) => {
+  if (!fornecedor && !cliente) return;
   const img = src => `<img src="${src}" alt="">`;
   $('marca').innerHTML =
-    (esquerda ? img(esquerda) : '') +
+    (fornecedor ? img(fornecedor) : '') +
     '<span class="liga"></span>' +
-    (direita ? img(direita) : '');
+    (cliente ? img(cliente) : '');
   $('marca').className = 'tem';
 }).catch(() => { /* sem branding, seguimos sem cabeçalho */ });
 

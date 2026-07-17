@@ -37,13 +37,15 @@ function emitir(evento) {
     for (const res of clientes) res.write(linha);
 }
 
-// Branding opcional, por ficheiros e não por código: cada cliente larga os
-// logos dele em branding/ e a app mostra-os. Sem ficheiros, não mostra nada.
-// A pasta está no .gitignore — o repo é público e não deve carregar marcas de
-// terceiros, e cada instalação tem as suas.
+// O logo da ALLPRA (fornecedor) vive em src/ui/ e vai no repo: é o mesmo para
+// todos os clientes. O do cliente vive em branding/, fora do repo, porque varia
+// por instalação — mesma lógica do .env. É esta divisão que permite um binário
+// único quando isto for empacotado.
 const brandingDir = path.join(__dirname, '..', '..', 'branding');
+const uiDir = path.join(__dirname, '..', 'ui');
 app.use('/branding', express.static(brandingDir));
-app.get('/api/branding', (req, res) => res.json(encontrarLogos(brandingDir)));
+app.get('/api/branding', (req, res) =>
+    res.json(encontrarLogos({ dirFornecedor: uiDir, dirCliente: brandingDir })));
 
 app.get('/api/tipos', (req, res) => {
     const etiquetas = {};

@@ -40,17 +40,17 @@ instaladas, `.env` completo (diz **quais** variáveis faltam), autenticação no
 Moloni (distingue username/password errados de client_id/secret errados), e o
 download de um PDF de cada tipo. Se isto passa, a app funciona.
 
-**Logos (opcional).** Para a app mostrar as marcas do cliente, criar uma pasta
-`branding/` na raiz com:
+**Logo do cliente (opcional).** O logo da ALLPRA já vai no repo (é o fornecedor,
+é sempre o mesmo). Para juntar o do cliente:
 
 ```
-branding/logo-esquerda.png    # ex.: o logo do cliente
-branding/logo-direita.png     # ex.: o logo do contabilista dele
+branding/logo-cliente.png
 ```
 
-Aceita `.png`, `.svg`, `.jpg` e `.webp`. Sem esses ficheiros, a app não mostra
-cabeçalho nenhum. A pasta está no `.gitignore` de propósito: o repo é público e
-não deve carregar marcas de terceiros, e cada instalação tem as suas.
+Aceita `.png`, `.svg`, `.jpg` e `.webp`. Sem ele, aparece só o da ALLPRA. A pasta
+`branding/` está no `.gitignore`: varia por instalação, como o `.env`. É esta
+divisão — fornecedor no repo, cliente em ficheiro — que permite um binário único
+se isto for empacotado num `.exe`.
 
 Depois, criar um atalho do launcher no ambiente de trabalho.
 
