@@ -85,19 +85,21 @@ function mostrarErro(msg) {
   libertarBotao();
 }
 
-// Por defeito: o mês passado — o caso real é o fecho mensal da contabilidade.
+// Por defeito: do dia 1 deste mês até hoje — o mês corrente até ao momento.
 (function preencherDatas() {
   const hoje = new Date();
-  const primeiro = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
-  const ultimo = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
+  const primeiro = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
   const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   $('inicio').value = iso(primeiro);
-  $('fim').value = iso(ultimo);
+  $('fim').value = iso(hoje);
 })();
 
+// Nenhum tipo ligado por defeito, de propósito: com os três ligados, um clique
+// distraído descarregava tudo. Escolher é uma decisão consciente — e o
+// formulário recusa-se a avançar sem pelo menos um.
 fetch('/api/tipos').then(r => r.json()).then(tipos => {
   $('tipos').innerHTML = Object.entries(tipos).map(([chave, etiqueta]) =>
-    `<label class="tipo"><input type="checkbox" name="tipo" value="${chave}" checked> ${etiqueta}</label>`
+    `<label class="tipo"><input type="checkbox" name="tipo" value="${chave}"> ${etiqueta}</label>`
   ).join('');
 });
 

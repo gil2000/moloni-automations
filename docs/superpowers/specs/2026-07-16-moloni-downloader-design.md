@@ -102,8 +102,10 @@ saft_code }` e nunca traz `name` — logo o suposto fallback era o que sempre co
 
 ## Fluxo
 
-1. A contabilista escolhe `data início`, `data fim` e os tipos (3 checkboxes, todos
-   ligados por defeito).
+1. A contabilista escolhe `data início`, `data fim` e os tipos. As datas vêm
+   preenchidas do dia 1 do mês corrente até hoje; **nenhum tipo vem ligado** — com
+   os três ligados por defeito, um clique distraído descarregava tudo. Escolher é
+   uma decisão consciente, e o formulário recusa-se a avançar sem pelo menos um.
 2. A app deriva os anos abrangidos (`2025-11 → 2026-02` = `[2025, 2026]`).
 3. Por cada tipo × ano: pagina `getAll` (qty 50, offset += 50) até vir página
    incompleta ou vazia.
