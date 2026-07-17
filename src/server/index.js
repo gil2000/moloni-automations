@@ -176,7 +176,10 @@ function criarServidor(opcoes = {}) {
     // /api/abrir-pasta a qualquer pessoa na mesma rede (ex.: wifi de escritório).
     return new Promise((resolve, reject) => {
         const servidor = app.listen(porta, '127.0.0.1', () => {
-            const url = `http://localhost:${porta}`;
+            // Não usar a variável `porta`: com porta:0 (o Electron pede isto para
+            // evitar colidir com a versão web a correr ao mesmo tempo), o pedido
+            // é 0 mas o SO atribui uma porta real — só o servidor a sabe.
+            const url = `http://localhost:${servidor.address().port}`;
             console.log(`\n  Moloni Downloader:  ${url}`);
             if (config) {
                 console.log(`  Empresa:            ${config.companyId}`);
