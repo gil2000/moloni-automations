@@ -54,3 +54,11 @@ echo "A abrir no browser..."
 ) &
 
 npm start
+
+# Se o npm start rebentar, a janela não deve desaparecer e levar o erro com ela
+# — foi assim que um bug do launcher de Windows ficou invisível no primeiro
+# teste. Ela tem de conseguir ler o que se passou, nem que seja para o repetir
+# ao telefone.
+echo ""
+echo "A aplicação terminou. Carrega em Enter para fechar."
+read -r _
