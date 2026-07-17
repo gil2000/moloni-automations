@@ -10,6 +10,13 @@ Duplo-clique em **Descarregar Recibos.command** (macOS) ou
 **Descarregar Recibos.bat** (Windows). Abre no browser: escolhe as datas, os
 tipos, e carrega em Descarregar.
 
+**Não feches a janela preta (o Terminal) enquanto estiveres a descarregar** —
+é ela que faz o trabalho. Fechá-la cancela o download a meio. Quando acabares,
+fecha-a para terminar a aplicação.
+
+Um mês de recibos demora ~10-15 minutos. A barra fica parada durante os
+primeiros minutos enquanto procura os documentos — é normal.
+
 Os PDFs ficam em `downloads/<ano>-<mês>/`.
 
 ## Instalar num PC novo
@@ -21,8 +28,6 @@ git clone <repo> && cd moloni-automations
 npm install
 cp .env.example .env   # preencher com as credenciais Moloni do cliente
 ```
-
-Substituir `<repo>` pelo URL do repositório git.
 
 Confirmar que funciona antes de entregar:
 

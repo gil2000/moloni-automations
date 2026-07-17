@@ -1739,16 +1739,41 @@ Ficheiro `Descarregar Recibos.command`:
 # Atalho para a contabilista. Duplo-clique no Finder.
 cd "$(dirname "$0")" || exit 1
 
+# Ela vai pensar que "a app é o browser" e fechar esta janela — e isso mata o
+# servidor a meio do download, sem explicação nenhuma. Este aviso é a única
+# coisa que o impede.
+echo ""
+echo "  +--------------------------------------------------+"
+echo "  |  NAO FECHES ESTA JANELA enquanto descarregas.     |"
+echo "  |  Fecha-la cancela o download a meio.              |"
+echo "  |  No fim, fecha-a para terminar a aplicacao.       |"
+echo "  +--------------------------------------------------+"
+echo ""
+
 echo "A verificar atualizações..."
 # Um update falhado nunca impede a app de abrir — arranca-se com o que há.
+# Nada de "AVISO": para ela não há aqui nada a fazer, e a palavra só assusta.
 if git pull --quiet 2>/dev/null && npm install --silent --no-audit --no-fund 2>/dev/null; then
     echo "Atualizado."
 else
-    echo "AVISO: não foi possível atualizar. A abrir a versão instalada."
+    echo "Não foi possível verificar atualizações. A abrir a versão instalada."
 fi
 
+# Espera que o servidor responda em vez de dormir 2 segundos às cegas: num
+# computador lento o browser abria antes de haver quem servisse a página, e
+# ela via um erro de ligação recusada logo à entrada.
 echo "A abrir no browser..."
-(sleep 2 && open "http://localhost:4711") &
+(
+    for _ in $(seq 1 60); do
+        if curl -s -o /dev/null "http://localhost:4711/api/tipos" 2>/dev/null; then
+            open "http://localhost:4711"
+            exit 0
+        fi
+        sleep 0.5
+    done
+    echo "A aplicação está a demorar. Abre à mão: http://localhost:4711"
+) &
+
 npm start
 ```
 
@@ -1766,12 +1791,22 @@ Ficheiro `Descarregar Recibos.bat`:
 REM Atalho para a contabilista. Duplo-clique no Explorador.
 cd /d "%~dp0"
 
+REM Ver o comentario equivalente no launcher de macOS: fechar esta janela mata
+REM o servidor a meio do download.
+echo.
+echo   +--------------------------------------------------+
+echo   ^|  NAO FECHES ESTA JANELA enquanto descarregas.     ^|
+echo   ^|  Fecha-la cancela o download a meio.              ^|
+echo   ^|  No fim, fecha-a para terminar a aplicacao.       ^|
+echo   +--------------------------------------------------+
+echo.
+
 echo A verificar atualizacoes...
 git pull --quiet 2>nul && npm install --silent --no-audit --no-fund 2>nul
-if errorlevel 1 echo AVISO: nao foi possivel atualizar. A abrir a versao instalada.
+if errorlevel 1 echo Nao foi possivel verificar atualizacoes. A abrir a versao instalada.
 
 echo A abrir no browser...
-start "" /b cmd /c "timeout /t 2 >nul && start http://localhost:4711"
+start "" /b cmd /c "timeout /t 3 >nul && start http://localhost:4711"
 npm start
 ```
 
@@ -1791,6 +1826,13 @@ descarregar um de cada vez.
 Duplo-clique em **Descarregar Recibos.command** (macOS) ou
 **Descarregar Recibos.bat** (Windows). Abre no browser: escolhe as datas, os
 tipos, e carrega em Descarregar.
+
+**Não feches a janela preta (o Terminal) enquanto estiveres a descarregar** —
+é ela que faz o trabalho. Fechá-la cancela o download a meio. Quando acabares,
+fecha-a para terminar a aplicação.
+
+Um mês de recibos demora ~10-15 minutos. A barra fica parada durante os
+primeiros minutos enquanto procura os documentos — é normal.
 
 Os PDFs ficam em `downloads/<ano>-<mês>/`.
 
