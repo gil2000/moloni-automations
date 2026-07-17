@@ -1,0 +1,13 @@
+{
+  "name": "moloni-downloader-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Casca Electron do Moloni Downloader — o motor (src/moloni, src/download, src/server) é partilhado com a versão web e vive fora desta pasta.",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^43.1.1"
+  }
+}
