@@ -198,6 +198,77 @@ abrir o browser. O Gil faz push; ela recebe no arranque seguinte.
 - **Volume desconhecido de faturas.** Os 935/mês são recibos. Não se sabe o volume de
   faturas e faturas-recibo — pode mudar a conta da lentidão.
 
+## Validado contra a API real em 2026-07-16
+
+Corrido `scripts/validar-tipos.js 2026` com as credenciais da ALLPRA:
+
+| tipo | documentos em 2026 | PDF |
+|---|---|---|
+| recibos | 5153 | OK, 235 KB |
+| faturas | 5224 | OK, 238 KB |
+| faturas-recibo | 347 | OK, 299 KB |
+
+**A suposição do `getPDFLink` confirma-se para os três tipos** — não é preciso cortar
+nenhum. O risco principal do projeto está fechado.
+
+Três factos observados que contradiziam este spec e obrigaram a corrigir o plano:
+
+1. **`document_type` não traz `name`.** Vem `{ document_type_id, saft_code }` — ex.:
+   `{"document_type_id":2,"saft_code":"RE"}`. A afirmação anterior deste spec, de que
+   `document_type.name` era a fonte de verdade do nome do ficheiro e podia variar por
+   empresa, era **falsa**: é sempre `undefined`, e o fallback é que sempre correu (no
+   script original também). O nome usa agora o `label` do `TIPOS` diretamente.
+2. **A `date` vem em ISO com fuso:** `"2026-07-16T00:00:00+0100"`, e não
+   `"YYYY-MM-DD HH:mm:ss"`. O `slice(0,7)`/`slice(0,10)` continua correto, e a decisão
+   de nunca usar objetos `Date` fica **provada**, não só justificada: meia-noite de 1
+   de julho em Lisboa é ainda 30 de junho em UTC, e um `new Date()` arrumaria o
+   documento no mês errado. Há testes a fixar isto.
+3. **`number` é numérico** (ex.: `2638`), não uma string com série.
+
+**Colisões de nome de ficheiro: medidas, zero.** Com o esquema
+`<label> <number> - <entidade>.pdf` dentro da pasta do ano-mês, os 10.717 documentos
+emitidos em 2026 (5153 + 5220 + 344) geram 10.717 caminhos únicos. O risco de um
+ficheiro sobrepor outro em silêncio não se materializa nestes dados.
+
+**Comprimento dos nomes: medido, com folga.** O nome mais longo dos 10.717 tem
+**106 bytes**; o limite do sistema de ficheiros é 255. Zero acima de 150. Zero
+entidades vazias, zero caracteres de controlo.
+
+Decisão consciente de **não** truncar nomes nem filtrar caracteres de controlo:
+uma revisão mostrou que um `entity_name` de ~300 caracteres daria `ENAMETOOLONG` e
+que um NUL daria `ERR_INVALID_ARG_VALUE`. Ambos são reais, mas: (a) não ocorrem
+nestes dados, com folga de 2,4×; (b) o `job.js` apanha erros **por documento** e
+regista-os no relatório de falhas — a contabilista veria "documento X falhou:
+ENAMETOOLONG", que é falha alta e visível, não perda silenciosa. Se um cliente
+futuro tiver nomes patológicos, o sintoma aparece no relatório e resolve-se então.
+
+## Verificado ponta-a-ponta em 2026-07-17
+
+Pedido junho/2026, só recibos, pela UI — o caso que o script original fez com 935
+recibos e 0 falhas.
+
+- **A listagem completou-se: 935 recibos.** Igual ao script original. Prova a
+  paginação (19 páginas de 50) e o filtro de intervalo contra uma referência
+  conhecida — se perdesse ou duplicasse documentos, o número não batia.
+- **278 PDFs descarregados antes de parar** (parou-se de propósito; não valia a
+  pena sacar tudo). Destes: **278 PDFs verdadeiros, 0 HTML, 0 vazios, 0 falhas.**
+  As duas pegadinhas do `getPDFLink` estão batidas na prática e à escala, não só
+  em testes com HTTP mockado.
+- Os PDFs foram apagados a seguir — eram dados fiscais reais de clientes.
+
+**O que isto não prova:** que os 935 todos passariam. Mas 278 consecutivos sem uma
+única falha, com o mesmo mecanismo para todos, é evidência forte.
+
+## Por fazer — depende do Gil
+
+**O auto-update ainda não funciona.** O remote `github.com/gil2000/moloni-automations`
+está configurado, mas a máquina não tem credenciais do GitHub (sem `gh`, sem chaves
+SSH), e o remote é HTTPS: o `git pull` do launcher dá `could not read Username`.
+
+A app arranca à mesma — o launcher está feito para nunca deixar um update falhado
+impedir o arranque —, mas não se atualiza. Para fechar isto é preciso uma chave SSH
+(e mudar o remote para SSH) ou um token do GitHub guardado no keychain.
+
 ## Fora de âmbito (decidido explicitamente)
 
 - ZIP no fim, folha de resumo CSV/Excel, subpastas por entidade — todos considerados e

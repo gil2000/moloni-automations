@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Descarregar documentos Moloni</title>
+<style>
+  :root { --azul: #0b5fff; --cinza: #6b7280; --erro: #b91c1c; --ok: #15803d; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 34rem;
+         margin: 3rem auto; padding: 0 1.25rem; color: #111; line-height: 1.5; }
+  h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+  p.sub { color: var(--cinza); margin-top: 0; }
+  fieldset { border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; margin: 0 0 1rem; }
+  legend { padding: 0 0.4rem; font-weight: 600; font-size: 0.9rem; }
+  .datas { display: flex; gap: 1rem; }
+  .datas label { flex: 1; display: block; font-size: 0.85rem; color: var(--cinza); }
+  input[type=date] { width: 100%; padding: 0.5rem; font-size: 1rem;
+                     border: 1px solid #d1d5db; border-radius: 6px; }
+  .tipo { display: block; margin: 0.35rem 0; }
+  button { background: var(--azul); color: #fff; border: 0; border-radius: 6px;
+           padding: 0.7rem 1.2rem; font-size: 1rem; cursor: pointer; }
+  button:disabled { background: #9ca3af; cursor: default; }
+  button.sec { background: #fff; color: var(--azul); border: 1px solid var(--azul); }
+  #painel { margin-top: 1.5rem; display: none; }
+  progress { width: 100%; height: 1rem; }
+  #estado { font-variant-numeric: tabular-nums; }
+  .erro { color: var(--erro); }
+  .ok { color: var(--ok); font-weight: 600; }
+  details { margin-top: 0.75rem; }
+  li { font-size: 0.85rem; color: var(--cinza); }
+</style>
+</head>
+<body>
+<h1>Descarregar documentos Moloni</h1>
+<p class="sub">Escolhe o período e os tipos de documento.</p>
+
+<form id="form">
+  <fieldset>
+    <legend>Período</legend>
+    <div class="datas">
+      <label>De <input type="date" id="inicio" required></label>
+      <label>Até <input type="date" id="fim" required></label>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Tipos de documento</legend>
+    <div id="tipos"></div>
+  </fieldset>
+
+  <button type="submit" id="btn">Descarregar</button>
+</form>
+
+<div id="painel">
+  <p id="estado">A preparar…</p>
+  <progress id="barra" max="100" value="0"></progress>
+  <div id="resumo"></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+// Os motivos de erro trazem texto CRU da API do Moloni — o documents.js mete lá
+// JSON.stringify da resposta inesperada. Nada disso entra em innerHTML sem passar
+// por aqui: `<img src=x onerror=...>` injetado assim chega a executar.
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Saber se há job a decorrer é o que permite distinguir "a ligação caiu e o
+// download morreu" de "o browser reconectou o SSE sem nada estar a acontecer".
+let jobACorrer = false;
+
+function libertarBotao() {
+  jobACorrer = false;
+  $('btn').disabled = false;
+  $('btn').textContent = 'Descarregar';
+}
+
+// Todo o caminho de erro passa por aqui — se algum não passar, o botão fica
+// preso em "A descarregar…" e ela tem de recarregar a página sem perceber porquê.
+function mostrarErro(msg) {
+  $('painel').style.display = 'block';
+  $('estado').innerHTML = `<span class="erro">${esc(msg)}</span>`;
+  libertarBotao();
+}
+
+// Por defeito: o mês passado — o caso real é o fecho mensal da contabilidade.
+(function preencherDatas() {
+  const hoje = new Date();
+  const primeiro = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
+  const ultimo = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
+  const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  $('inicio').value = iso(primeiro);
+  $('fim').value = iso(ultimo);
+})();
+
+fetch('/api/tipos').then(r => r.json()).then(tipos => {
+  $('tipos').innerHTML = Object.entries(tipos).map(([chave, etiqueta]) =>
+    `<label class="tipo"><input type="checkbox" name="tipo" value="${chave}" checked> ${etiqueta}</label>`
+  ).join('');
+});
+
+const fmt = n => n.toLocaleString('pt-PT');
+
+const fonte = new EventSource('/api/eventos');
+
+// Sem isto, se a ligação cair (o servidor reinicia, ou rebenta), o browser
+// reconecta em silêncio — mas o job morreu com o processo antigo e nunca mais
+// chega 'concluido' nem 'erro'. Ela ficava a olhar para uma barra parada sem
+// saber se ainda está a listar (que demora 3-5 min, e é normal) ou se morreu.
+// Como isto corre em localhost, uma ligação perdida significa quase de certeza
+// que o servidor caiu — vale mais um falso alarme do que um silêncio eterno.
+fonte.onerror = () => {
+  if (!jobACorrer) return; // reconexão sem job a decorrer não interessa a ninguém
+  mostrarErro('Perdeu-se a ligação à aplicação. O download pode não ter terminado — '
+    + 'confirma a pasta e tenta outra vez.');
+};
+
+fonte.onmessage = e => {
+  const ev = JSON.parse(e.data);
+
+  if (ev.fase === 'listar') {
+    $('barra').removeAttribute('value'); // indeterminada: ainda não se sabe o total
+    $('estado').textContent = `A procurar ${ev.tipo} de ${ev.ano}… ${fmt(ev.verificados || 0)} verificados`;
+  }
+  if (ev.fase === 'listagem-concluida') {
+    $('estado').textContent = `${fmt(ev.total)} documentos encontrados. A descarregar…`;
+    $('barra').value = 0;
+  }
+  if (ev.fase === 'descarregar') {
+    $('barra').value = ev.total ? (ev.feitos / ev.total) * 100 : 0;
+    $('estado').textContent = `A descarregar ${fmt(ev.feitos)} de ${fmt(ev.total)}`
+      + (ev.falhas ? ` — ${fmt(ev.falhas)} falhas` : '');
+  }
+  if (ev.fase === 'concluido') {
+    $('barra').value = 100;
+    $('estado').innerHTML = `<span class="ok">Concluído: ${fmt(ev.sucesso)} de ${fmt(ev.total)} guardados.</span>`;
+    let html = '<p><button class="sec" id="abrir">Abrir pasta</button></p>';
+    if (ev.falhas?.length) {
+      html += `<details><summary>${fmt(ev.falhas.length)} falharam</summary><ul>`
+        + ev.falhas.map(f => `<li>${esc(f.numero)}: ${esc(f.motivo)}</li>`).join('')
+        + '</ul></details>';
+    }
+    $('resumo').innerHTML = html;
+    $('abrir').onclick = () => fetch('/api/abrir-pasta', { method: 'POST' });
+    libertarBotao();
+  }
+  if (ev.fase === 'erro') {
+    mostrarErro(`Erro: ${ev.motivo}`);
+  }
+};
+
+$('form').onsubmit = async e => {
+  e.preventDefault();
+  const tipos = [...document.querySelectorAll('input[name=tipo]:checked')].map(c => c.value);
+  if (tipos.length === 0) return mostrarErro('Escolhe pelo menos um tipo de documento.');
+
+  jobACorrer = true;
+  $('btn').disabled = true;
+  $('btn').textContent = 'A descarregar…';
+  $('painel').style.display = 'block';
+  $('resumo').innerHTML = '';
+  $('estado').textContent = 'A preparar…';
+
+  try {
+    const resposta = await fetch('/api/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inicio: $('inicio').value, fim: $('fim').value, tipos }),
+    });
+
+    if (!resposta.ok) {
+      const { erro } = await resposta.json()
+        .catch(() => ({ erro: 'A aplicação recusou o pedido.' }));
+      mostrarErro(erro);
+    }
+  } catch {
+    // Isto corre em localhost: se o fetch rebenta, o servidor caiu ou nunca
+    // arrancou. Sem este catch, a promessa rejeitava em silêncio e o botão
+    // ficava preso em "A descarregar…" até ela recarregar a página.
+    mostrarErro('Não foi possível falar com a aplicação. Fecha esta janela e '
+      + 'abre outra vez pelo atalho.');
+  }
+};
+</script>
+</body>
+</html>

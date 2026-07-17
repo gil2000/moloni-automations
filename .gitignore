@@ -5,6 +5,6 @@ node_modules/
 
 # Saída: PDFs com dados pessoais e fiscais de clientes — nunca commitar
 downloads/
-recibos-download/
 
 .DS_Store
+.superpowers/

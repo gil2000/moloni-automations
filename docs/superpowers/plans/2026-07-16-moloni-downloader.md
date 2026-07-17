@@ -17,6 +17,7 @@
 - **NUNCA enviar `signed: 1`** ao `documents/getPDFLink`. Ver Task 5.
 - **Versões de dependências** iguais às de `izigo-backend` para consistência: `axios@^1.13.5`, `axios-cookiejar-support@^6.0.5`, `tough-cookie@^6.0.0`, `dotenv@^17.2.4`, `express@^5.2.1`.
 - **Não usar `qs`** — usar `new URLSearchParams()` (built-in). O script original usava `qs`, mas era dependência fantasma (vinha de boleia do express).
+- **O script de testes é exatamente `node --test`. Não lhe tocar.** Verificado empiricamente em 2026-07-16: `node --test test/` rebenta com `MODULE_NOT_FOUND` (o Node trata o caminho como módulo), e `node --test test/**/*.test.js` **sem aspas** larga em silêncio os testes na raiz de `test/` — o `npm` corre em `sh`, que não tem `globstar`, e expande o `**` para um só nível. O `node --test` sem argumentos descobre tudo recursivamente e não envolve o shell. Se mexeres nisto, prova com testes em `test/x.test.js` **e** `test/sub/y.test.js` ao mesmo tempo.
 - **Nunca commitar** `.env` nem `downloads/` — já cobertos pelo `.gitignore`.
 - **Datas** tratadas como strings `YYYY-MM-DD`, comparadas lexicograficamente. Sem objetos `Date`, sem aritmética de fusos.
 - **Intervalos inclusivos** nas duas pontas.
@@ -47,7 +48,7 @@ Arranca o projeto e o módulo que valida o `.env`. O `.env` real já existe na r
   "main": "src/server/index.js",
   "scripts": {
     "start": "node src/server/index.js",
-    "test": "node --test test/"
+    "test": "node --test"
   },
   "dependencies": {
     "axios": "^1.13.5",
@@ -124,7 +125,10 @@ Ficheiro `src/config.js`:
 
 ```js
 'use strict';
-require('dotenv').config();
+// quiet: sem isto o dotenv imprime "dicas" de marketing no arranque (chega a
+// pôr URLs de produtos no ecrã). Quem abre esta app é a contabilista, não um
+// programador — o terminal dela só deve ter o que lhe interessa.
+require('dotenv').config({ quiet: true });
 
 const OBRIGATORIAS = [
     'MOLONI_CLIENT_ID',
@@ -313,7 +317,7 @@ module.exports = { criarAuth, BASE };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 9 testes no total.
+Expected: PASS — 10 testes no total.
 
 - [ ] **Step 5: Commit**
 
@@ -422,7 +426,7 @@ module.exports = { criarClient };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 11 testes.
+Expected: PASS — 12 testes.
 
 - [ ] **Step 5: Commit**
 
@@ -494,10 +498,23 @@ test('para na página vazia', async () => {
     assert.strictEqual(docs.length, QTY);
 });
 
-test('trata resposta não-array como fim da paginação', async () => {
+// Um array vazio é fim legítimo. Qualquer outra coisa é a API a portar-se mal,
+// e tem de rebentar: parar em silêncio devolveria meia lista como se fosse o ano
+// inteiro, e ninguém daria por isso.
+test('rebenta com resposta inesperada em vez de a tratar como fim', async () => {
     const client = clientFalso([{ errors: 'qualquer coisa' }]);
-    const docs = await criarDocuments(client).listarPorAno('recibos', 2026);
-    assert.deepStrictEqual(docs, []);
+    await assert.rejects(
+        () => criarDocuments(client).listarPorAno('recibos', 2026),
+        /Resposta inesperada/
+    );
+});
+
+test('rebenta se a resposta inesperada vier a meio da paginação', async () => {
+    const client = clientFalso([paginaCheia(), { errors: 'boom' }]);
+    await assert.rejects(
+        () => criarDocuments(client).listarPorAno('recibos', 2026),
+        /Resposta inesperada/
+    );
 });
 
 test('reporta progresso por página', async () => {
@@ -556,7 +573,18 @@ function criarDocuments(client) {
 
         while (true) {
             const pagina = await client.post(definicao.endpoint, { year: ano, qty: QTY, offset });
-            if (!Array.isArray(pagina) || pagina.length === 0) break;
+
+            // A API do Moloni responde HTTP 200 mesmo com corpo de erro. Parar em
+            // silêncio aqui devolveria os documentos já recolhidos como se fossem
+            // o ano completo — a contabilista receberia menos ficheiros e ninguém
+            // daria por isso. Mais vale rebentar e dizer porquê.
+            if (!Array.isArray(pagina)) {
+                throw new Error(
+                    `Resposta inesperada do Moloni em ${definicao.endpoint} ` +
+                    `(ano ${ano}, offset ${offset}): ${JSON.stringify(pagina)}`
+                );
+            }
+            if (pagina.length === 0) break; // fim legítimo
 
             todos.push(...pagina);
             aoProgredir({ tipo, ano, verificados: todos.length });
@@ -577,7 +605,7 @@ module.exports = { criarDocuments, TIPOS, QTY };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 17 testes.
+Expected: PASS — 19 testes.
 
 - [ ] **Step 5: Commit**
 
@@ -733,7 +761,7 @@ module.exports = { criarPdf };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 22 testes.
+Expected: PASS — 25 testes.
 
 - [ ] **Step 5: Commit**
 
@@ -839,7 +867,7 @@ git commit -m "Valida os 3 tipos de documento contra a API real"
 - Consumes: `TIPOS` (Task 4).
 - Produces:
   - `sanitizar(nome: string): string`
-  - `bucketAnoMes(data: string): string` — `'2026-06-15 00:00:00'` → `'2026-06'`
+  - `bucketAnoMes(data: string): string` — `'2026-06-15T00:00:00+0100'` → `'2026-06'` (formato real do Moloni)
   - `nomeFicheiro(doc: object, tipo: string): string`
   - `caminhoDestino(baseDir: string, doc: object, tipo: string): string`
 
@@ -854,12 +882,19 @@ const assert = require('node:assert');
 const path = require('node:path');
 const { sanitizar, bucketAnoMes, nomeFicheiro, caminhoDestino } = require('../../src/download/ficheiros');
 
+// Forma REAL de um documento devolvido pelo getAll, observada contra a API em
+// 2026-07-16 (ver Task 6). Não inventar formatos aqui: `date` vem em ISO com
+// fuso, `number` é numérico, e `document_type` NÃO tem `name` — só
+// `{ document_type_id, saft_code }`.
 const doc = {
     document_id: 1,
-    number: 'FT 2026/123',
-    date: '2026-06-15 00:00:00',
+    number: 2652,
+    date: '2026-06-15T00:00:00+0100',
     entity_name: 'ACME Lda.',
-    document_type: { name: 'Fatura' },
+    entity_vat: '500123456',
+    entity_number: '500123456',
+    document_type: { document_type_id: 1, saft_code: 'FT' },
+    status: 1,
 };
 
 test('sanitizar troca caracteres inválidos de nome de ficheiro', () => {
@@ -870,29 +905,31 @@ test('sanitizar tira espaços das pontas', () => {
     assert.strictEqual(sanitizar('  nome  '), 'nome');
 });
 
-test('bucketAnoMes extrai ano-mês da data do Moloni', () => {
-    assert.strictEqual(bucketAnoMes('2026-06-15 00:00:00'), '2026-06');
-    assert.strictEqual(bucketAnoMes('2026-06-15'), '2026-06');
+test('bucketAnoMes extrai ano-mês do formato real do Moloni', () => {
+    assert.strictEqual(bucketAnoMes('2026-06-15T00:00:00+0100'), '2026-06');
 });
 
-test('nomeFicheiro usa o document_type.name da API', () => {
-    assert.strictEqual(nomeFicheiro(doc, 'faturas'), 'Fatura FT 2026-123 - ACME Lda..pdf');
+// Este teste guarda a razão de não usarmos objetos Date em lado nenhum.
+test('bucketAnoMes não é enganado pelo fuso horário do Moloni', () => {
+    // "2026-07-01T00:00:00+0100" é ainda 30 de junho em UTC. Fatiar a string
+    // dá julho — o mês que a contabilista vê no portal. new Date(...) daria
+    // junho e arrumava o documento na pasta errada.
+    assert.strictEqual(bucketAnoMes('2026-07-01T00:00:00+0100'), '2026-07');
 });
 
-test('nomeFicheiro cai no label do tipo se a API não der document_type', () => {
-    const semTipo = { ...doc, document_type: undefined };
-    assert.strictEqual(nomeFicheiro(semTipo, 'faturas'), 'Fatura FT 2026-123 - ACME Lda..pdf');
+test('nomeFicheiro usa o label do tipo', () => {
+    assert.strictEqual(nomeFicheiro(doc, 'faturas'), 'Fatura 2652 - ACME Lda..pdf');
 });
 
 test('nomeFicheiro cai no NIF quando não há nome de entidade', () => {
-    const semNome = { ...doc, entity_name: '' , entity_vat: '500123456' };
-    assert.strictEqual(nomeFicheiro(semNome, 'faturas'), 'Fatura FT 2026-123 - 500123456.pdf');
+    const semNome = { ...doc, entity_name: '' };
+    assert.strictEqual(nomeFicheiro(semNome, 'faturas'), 'Fatura 2652 - 500123456.pdf');
 });
 
 test('caminhoDestino arruma na pasta do ano-mês do próprio documento', () => {
     assert.strictEqual(
         caminhoDestino('/saida', doc, 'faturas'),
-        path.join('/saida', '2026-06', 'Fatura FT 2026-123 - ACME Lda..pdf')
+        path.join('/saida', '2026-06', 'Fatura 2652 - ACME Lda..pdf')
     );
 });
 ```
@@ -915,16 +952,19 @@ function sanitizar(nome) {
     return String(nome).replace(/[/\\?%*:|"<>]/g, '-').trim();
 }
 
-// As datas do Moloni vêm "YYYY-MM-DD" ou "YYYY-MM-DD HH:mm:ss".
-// Fatiar a string evita objetos Date e problemas de fuso.
+// As datas do Moloni vêm em ISO com fuso: "2026-07-16T00:00:00+0100".
+// Fatiar a string, em vez de usar new Date(), não é preguiça — é o que
+// mantém o documento no mês que a contabilista vê no portal. Meia-noite de
+// 1 de julho em Lisboa é ainda 30 de junho em UTC.
 function bucketAnoMes(data) {
     return String(data).slice(0, 7);
 }
 
 function nomeFicheiro(doc, tipo) {
-    // O document_type.name da API é a fonte de verdade — pode variar por
-    // empresa. O label do TIPOS é só rede de segurança.
-    const etiqueta = doc.document_type?.name || TIPOS[tipo]?.label || 'Documento';
+    // Verificado contra a API real (Task 6): o document_type devolvido pelo
+    // getAll é { document_type_id, saft_code } — não traz `name`. O label do
+    // TIPOS é a fonte de verdade, não um fallback.
+    const etiqueta = TIPOS[tipo]?.label || 'Documento';
     const entidade = doc.entity_name || doc.entity_vat || doc.entity_number || 'sem-entidade';
     return sanitizar(`${etiqueta} ${doc.number} - ${entidade}.pdf`);
 }
@@ -941,7 +981,7 @@ module.exports = { sanitizar, bucketAnoMes, nomeFicheiro, caminhoDestino };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 29 testes.
+Expected: PASS — 32 testes.
 
 - [ ] **Step 5: Commit**
 
@@ -980,9 +1020,13 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const { correrJob, anosAbrangidos, dentroDoIntervalo } = require('../../src/download/job');
 
-const doc = (id, date, extra = {}) => ({
-    document_id: id, number: `N${id}`, date, status: 1,
-    entity_name: `Cliente ${id}`, document_type: { name: 'Recibo' }, ...extra,
+// Forma REAL do getAll (ver Task 6): `date` em ISO com fuso, `number` numérico,
+// `document_type` sem `name`. A data recebida aqui é só "YYYY-MM-DD" por
+// comodidade do teste, e é completada com a hora e o fuso que o Moloni devolve.
+const doc = (id, dia, extra = {}) => ({
+    document_id: id, number: 1000 + id, date: `${dia}T00:00:00+0100`, status: 1,
+    entity_name: `Cliente ${id}`,
+    document_type: { document_type_id: 2, saft_code: 'RE' }, ...extra,
 });
 
 // deps que não tocam no disco nem esperam de verdade.
@@ -1002,10 +1046,18 @@ test('anosAbrangidos cobre o intervalo inteiro', () => {
 });
 
 test('dentroDoIntervalo é inclusivo nas duas pontas', () => {
-    assert.ok(dentroDoIntervalo('2026-06-01 00:00:00', '2026-06-01', '2026-06-30'));
-    assert.ok(dentroDoIntervalo('2026-06-30 23:59:59', '2026-06-01', '2026-06-30'));
-    assert.ok(!dentroDoIntervalo('2026-05-31', '2026-06-01', '2026-06-30'));
-    assert.ok(!dentroDoIntervalo('2026-07-01', '2026-06-01', '2026-06-30'));
+    // Formato real do Moloni: ISO com fuso.
+    assert.ok(dentroDoIntervalo('2026-06-01T00:00:00+0100', '2026-06-01', '2026-06-30'));
+    assert.ok(dentroDoIntervalo('2026-06-30T23:59:59+0100', '2026-06-01', '2026-06-30'));
+    assert.ok(!dentroDoIntervalo('2026-05-31T00:00:00+0100', '2026-06-01', '2026-06-30'));
+    assert.ok(!dentroDoIntervalo('2026-07-01T00:00:00+0100', '2026-06-01', '2026-06-30'));
+});
+
+// O primeiro dia do intervalo em hora de Lisboa é ainda o dia anterior em UTC.
+// Fatiar a string mantém o documento dentro do intervalo que a contabilista
+// pediu; converter para Date deixá-lo-ia de fora.
+test('dentroDoIntervalo não é enganado pelo fuso horário', () => {
+    assert.ok(dentroDoIntervalo('2026-07-01T00:00:00+0100', '2026-07-01', '2026-07-31'));
 });
 
 test('descarrega só os documentos dentro do intervalo', async () => {
@@ -1024,7 +1076,7 @@ test('descarrega só os documentos dentro do intervalo', async () => {
     assert.strictEqual(r.sucesso, 1);
     assert.strictEqual(deps.escritos.length, 1);
     assert.ok(deps.escritos[0].caminho.includes('2026-06'));
-    assert.ok(deps.escritos[0].caminho.includes('N2'));
+    assert.ok(deps.escritos[0].caminho.includes('1002'));
 });
 
 test('ignora rascunhos (status 0) — não têm PDF', async () => {
@@ -1058,7 +1110,7 @@ test('uma falha não mata o job e entra no relatório', async () => {
 
     assert.strictEqual(r.sucesso, 1);
     assert.strictEqual(r.falhas.length, 1);
-    assert.deepStrictEqual(r.falhas[0], { numero: 'N1', documentId: 1, motivo: 'boom' });
+    assert.deepStrictEqual(r.falhas[0], { numero: 1001, documentId: 1, motivo: 'boom' });
 });
 
 test('faz retry 3x antes de desistir de um documento', async () => {
@@ -1198,7 +1250,7 @@ module.exports = { correrJob, anosAbrangidos, dentroDoIntervalo };
 - [ ] **Step 4: Correr os testes**
 
 Run: `npm test`
-Expected: PASS — 36 testes.
+Expected: PASS — 40 testes.
 
 - [ ] **Step 5: Commit**
 
@@ -1215,7 +1267,12 @@ Express fino: serve a UI, arranca **um** job de cada vez, transmite progresso po
 
 **Files:**
 - Create: `src/server/index.js`
-- Test: nenhum — o servidor é fino de propósito. É exercitado à mão na Task 11.
+- Create: `src/server/validar.js`
+- Test: `test/server/validar.test.js`
+
+O servidor em si é fino e não leva testes — é exercitado ponta-a-ponta na Task 11.
+Mas as regras de validação do `POST /api/jobs` são lógica de negócio a sério e
+extraem-se para `validar.js`, que se testa puro, sem arrancar servidor nenhum.
 
 **Interfaces:**
 - Consumes: tudo o que veio antes.
@@ -1225,8 +1282,93 @@ Express fino: serve a UI, arranca **um** job de cada vez, transmite progresso po
   - `POST /api/jobs` body `{ inicio, fim, tipos: string[] }` → `202 { ok: true }`, ou `409` se já houver job a correr, ou `400` se os parâmetros forem inválidos
   - `GET /api/eventos` → stream SSE com os eventos do job + `{ fase: 'concluido', ... }` ou `{ fase: 'erro', motivo }`
   - `POST /api/abrir-pasta` → `200 { ok: true }`; abre a pasta no Finder/Explorer
+  - `validarPedido({ inicio, fim, tipos }, tiposValidos): string | null` — devolve a
+    mensagem de erro, ou `null` se o pedido for válido.
 
-- [ ] **Step 1: Implementar o servidor**
+- [ ] **Step 1: Escrever o teste que falha**
+
+Ficheiro `test/server/validar.test.js`:
+
+```js
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert');
+const { validarPedido } = require('../../src/server/validar');
+
+const TIPOS_VALIDOS = { recibos: {}, faturas: {} };
+const valido = { inicio: '2026-06-01', fim: '2026-06-30', tipos: ['recibos'] };
+
+test('aceita um pedido válido', () => {
+    assert.strictEqual(validarPedido(valido, TIPOS_VALIDOS), null);
+});
+
+test('rejeita datas em falta ou mal formatadas', () => {
+    assert.match(validarPedido({ ...valido, inicio: 'ontem' }, TIPOS_VALIDOS), /formato inválido/);
+    assert.match(validarPedido({ ...valido, fim: undefined }, TIPOS_VALIDOS), /formato inválido/);
+    assert.match(validarPedido({ ...valido, inicio: '2026-6-1' }, TIPOS_VALIDOS), /formato inválido/);
+    assert.match(validarPedido(undefined, TIPOS_VALIDOS), /formato inválido/);
+});
+
+test('rejeita início posterior ao fim', () => {
+    assert.match(
+        validarPedido({ ...valido, inicio: '2026-06-30', fim: '2026-06-01' }, TIPOS_VALIDOS),
+        /início é posterior/
+    );
+});
+
+test('aceita início igual ao fim (intervalo de um dia)', () => {
+    assert.strictEqual(
+        validarPedido({ ...valido, inicio: '2026-06-15', fim: '2026-06-15' }, TIPOS_VALIDOS),
+        null
+    );
+});
+
+test('rejeita tipos em falta, vazios ou desconhecidos', () => {
+    assert.match(validarPedido({ ...valido, tipos: [] }, TIPOS_VALIDOS), /tipo de documento/);
+    assert.match(validarPedido({ ...valido, tipos: undefined }, TIPOS_VALIDOS), /tipo de documento/);
+    assert.match(validarPedido({ ...valido, tipos: ['notasCredito'] }, TIPOS_VALIDOS), /tipo de documento/);
+});
+```
+
+- [ ] **Step 2: Correr o teste para confirmar que falha**
+
+Run: `npm test`
+Expected: FAIL — `Cannot find module '../../src/server/validar'`.
+
+- [ ] **Step 3: Implementar o validar.js**
+
+Ficheiro `src/server/validar.js`:
+
+```js
+'use strict';
+
+const DATA_VALIDA = /^\d{4}-\d{2}-\d{2}$/;
+
+// Devolve a mensagem de erro para mostrar à utilizadora, ou null se estiver tudo bem.
+function validarPedido(pedido, tiposValidos) {
+    const { inicio, fim, tipos } = pedido || {};
+
+    if (!DATA_VALIDA.test(inicio || '') || !DATA_VALIDA.test(fim || '')) {
+        return 'Datas em falta ou em formato inválido (YYYY-MM-DD).';
+    }
+    if (inicio > fim) {
+        return 'A data de início é posterior à data de fim.';
+    }
+    if (!Array.isArray(tipos) || tipos.length === 0 || tipos.some(t => !tiposValidos[t])) {
+        return 'Escolhe pelo menos um tipo de documento válido.';
+    }
+    return null;
+}
+
+module.exports = { validarPedido };
+```
+
+- [ ] **Step 4: Correr os testes**
+
+Run: `npm test`
+Expected: PASS — 45 testes.
+
+- [ ] **Step 5: Implementar o servidor**
 
 Ficheiro `src/server/index.js`:
 
@@ -1241,6 +1383,7 @@ const { criarClient } = require('../moloni/client');
 const { criarDocuments, TIPOS } = require('../moloni/documents');
 const { criarPdf } = require('../moloni/pdf');
 const { correrJob } = require('../download/job');
+const { validarPedido } = require('./validar');
 
 const PORTA = Number(process.env.PORT) || 4711;
 
@@ -1285,24 +1428,15 @@ app.get('/api/eventos', (req, res) => {
     req.on('close', () => clientes.delete(res));
 });
 
-const DATA_VALIDA = /^\d{4}-\d{2}-\d{2}$/;
-
 app.post('/api/jobs', async (req, res) => {
-    const { inicio, fim, tipos } = req.body || {};
+    const erro = validarPedido(req.body, TIPOS);
+    if (erro) return res.status(400).json({ erro });
 
-    if (!DATA_VALIDA.test(inicio || '') || !DATA_VALIDA.test(fim || '')) {
-        return res.status(400).json({ erro: 'Datas em falta ou em formato inválido (YYYY-MM-DD).' });
-    }
-    if (inicio > fim) {
-        return res.status(400).json({ erro: 'A data de início é posterior à data de fim.' });
-    }
-    if (!Array.isArray(tipos) || tipos.length === 0 || tipos.some(t => !TIPOS[t])) {
-        return res.status(400).json({ erro: 'Escolhe pelo menos um tipo de documento válido.' });
-    }
     if (jobAtivo) {
         return res.status(409).json({ erro: 'Já está um download a decorrer.' });
     }
 
+    const { inicio, fim, tipos } = req.body;
     jobAtivo = true;
     res.status(202).json({ ok: true });
 
@@ -1339,27 +1473,24 @@ app.listen(PORTA, () => {
 });
 ```
 
-- [ ] **Step 2: Confirmar que arranca e valida a config**
-
-Run: `node -e "require('./src/server/index.js')" & sleep 2; curl -s localhost:4711/api/tipos; kill %1`
-Expected: `{"recibos":"Recibo","faturas":"Fatura","faturasRecibo":"Fatura-Recibo"}`
-
-- [ ] **Step 3: Confirmar que rejeita parâmetros inválidos**
+- [ ] **Step 6: Confirmar que o servidor arranca e responde**
 
 Run:
 ```bash
 npm start & sleep 2
+curl -s localhost:4711/api/tipos
 curl -s -X POST localhost:4711/api/jobs -H 'Content-Type: application/json' -d '{"inicio":"ontem","fim":"2026-06-30","tipos":["recibos"]}'
-curl -s -X POST localhost:4711/api/jobs -H 'Content-Type: application/json' -d '{"inicio":"2026-06-30","fim":"2026-06-01","tipos":["recibos"]}'
 kill %1
 ```
-Expected: primeiro `{"erro":"Datas em falta ou em formato inválido (YYYY-MM-DD)."}`, segundo `{"erro":"A data de início é posterior à data de fim."}`
+Expected: primeiro `{"recibos":"Recibo","faturas":"Fatura","faturasRecibo":"Fatura-Recibo"}`,
+segundo `{"erro":"Datas em falta ou em formato inválido (YYYY-MM-DD)."}` — confirma que
+o `validar.js` está de facto ligado ao endpoint, que é o que os testes unitários não provam.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/server/index.js
-git commit -m "Servidor Express com SSE de progresso"
+git add src/server/index.js src/server/validar.js test/server/validar.test.js
+git commit -m "Servidor Express com SSE de progresso e validação testada"
 ```
 
 ---
@@ -1443,6 +1574,30 @@ Ficheiro `src/ui/index.html`:
 <script>
 const $ = id => document.getElementById(id);
 
+// Os motivos de erro trazem texto CRU da API do Moloni — o documents.js mete lá
+// JSON.stringify da resposta inesperada. Nada disso entra em innerHTML sem passar
+// por aqui: `<img src=x onerror=...>` injetado assim chega a executar.
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Saber se há job a decorrer é o que permite distinguir "a ligação caiu e o
+// download morreu" de "o browser reconectou o SSE sem nada estar a acontecer".
+let jobACorrer = false;
+
+function libertarBotao() {
+  jobACorrer = false;
+  $('btn').disabled = false;
+  $('btn').textContent = 'Descarregar';
+}
+
+// Todo o caminho de erro passa por aqui — se algum não passar, o botão fica
+// preso em "A descarregar…" e ela tem de recarregar a página sem perceber porquê.
+function mostrarErro(msg) {
+  $('painel').style.display = 'block';
+  $('estado').innerHTML = `<span class="erro">${esc(msg)}</span>`;
+  libertarBotao();
+}
+
 // Por defeito: o mês passado — o caso real é o fecho mensal da contabilidade.
 (function preencherDatas() {
   const hoje = new Date();
@@ -1461,7 +1616,21 @@ fetch('/api/tipos').then(r => r.json()).then(tipos => {
 
 const fmt = n => n.toLocaleString('pt-PT');
 
-new EventSource('/api/eventos').onmessage = e => {
+const fonte = new EventSource('/api/eventos');
+
+// Sem isto, se a ligação cair (o servidor reinicia, ou rebenta), o browser
+// reconecta em silêncio — mas o job morreu com o processo antigo e nunca mais
+// chega 'concluido' nem 'erro'. Ela ficava a olhar para uma barra parada sem
+// saber se ainda está a listar (que demora 3-5 min, e é normal) ou se morreu.
+// Como isto corre em localhost, uma ligação perdida significa quase de certeza
+// que o servidor caiu — vale mais um falso alarme do que um silêncio eterno.
+fonte.onerror = () => {
+  if (!jobACorrer) return; // reconexão sem job a decorrer não interessa a ninguém
+  mostrarErro('Perdeu-se a ligação à aplicação. O download pode não ter terminado — '
+    + 'confirma a pasta e tenta outra vez.');
+};
+
+fonte.onmessage = e => {
   const ev = JSON.parse(e.data);
 
   if (ev.fase === 'listar') {
@@ -1480,44 +1649,51 @@ new EventSource('/api/eventos').onmessage = e => {
   if (ev.fase === 'concluido') {
     $('barra').value = 100;
     $('estado').innerHTML = `<span class="ok">Concluído: ${fmt(ev.sucesso)} de ${fmt(ev.total)} guardados.</span>`;
-    let html = '<p><button class="sec" onclick="fetch(\'/api/abrir-pasta\',{method:\'POST\'})">Abrir pasta</button></p>';
+    let html = '<p><button class="sec" id="abrir">Abrir pasta</button></p>';
     if (ev.falhas?.length) {
       html += `<details><summary>${fmt(ev.falhas.length)} falharam</summary><ul>`
-        + ev.falhas.map(f => `<li>${f.numero}: ${f.motivo}</li>`).join('') + '</ul></details>';
+        + ev.falhas.map(f => `<li>${esc(f.numero)}: ${esc(f.motivo)}</li>`).join('')
+        + '</ul></details>';
     }
     $('resumo').innerHTML = html;
-    $('btn').disabled = false;
-    $('btn').textContent = 'Descarregar';
+    $('abrir').onclick = () => fetch('/api/abrir-pasta', { method: 'POST' });
+    libertarBotao();
   }
   if (ev.fase === 'erro') {
-    $('estado').innerHTML = `<span class="erro">Erro: ${ev.motivo}</span>`;
-    $('btn').disabled = false;
-    $('btn').textContent = 'Descarregar';
+    mostrarErro(`Erro: ${ev.motivo}`);
   }
 };
 
 $('form').onsubmit = async e => {
   e.preventDefault();
   const tipos = [...document.querySelectorAll('input[name=tipo]:checked')].map(c => c.value);
-  if (tipos.length === 0) return alert('Escolhe pelo menos um tipo de documento.');
+  if (tipos.length === 0) return mostrarErro('Escolhe pelo menos um tipo de documento.');
 
+  jobACorrer = true;
   $('btn').disabled = true;
   $('btn').textContent = 'A descarregar…';
   $('painel').style.display = 'block';
   $('resumo').innerHTML = '';
   $('estado').textContent = 'A preparar…';
 
-  const resposta = await fetch('/api/jobs', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inicio: $('inicio').value, fim: $('fim').value, tipos }),
-  });
+  try {
+    const resposta = await fetch('/api/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inicio: $('inicio').value, fim: $('fim').value, tipos }),
+    });
 
-  if (!resposta.ok) {
-    const { erro } = await resposta.json();
-    $('estado').innerHTML = `<span class="erro">${erro}</span>`;
-    $('btn').disabled = false;
-    $('btn').textContent = 'Descarregar';
+    if (!resposta.ok) {
+      const { erro } = await resposta.json()
+        .catch(() => ({ erro: 'A aplicação recusou o pedido.' }));
+      mostrarErro(erro);
+    }
+  } catch {
+    // Isto corre em localhost: se o fetch rebenta, o servidor caiu ou nunca
+    // arrancou. Sem este catch, a promessa rejeitava em silêncio e o botão
+    // ficava preso em "A descarregar…" até ela recarregar a página.
+    mostrarErro('Não foi possível falar com a aplicação. Fecha esta janela e '
+      + 'abre outra vez pelo atalho.');
   }
 };
 </script>
@@ -1563,16 +1739,41 @@ Ficheiro `Descarregar Recibos.command`:
 # Atalho para a contabilista. Duplo-clique no Finder.
 cd "$(dirname "$0")" || exit 1
 
+# Ela vai pensar que "a app é o browser" e fechar esta janela — e isso mata o
+# servidor a meio do download, sem explicação nenhuma. Este aviso é a única
+# coisa que o impede.
+echo ""
+echo "  +--------------------------------------------------+"
+echo "  |  NAO FECHES ESTA JANELA enquanto descarregas.     |"
+echo "  |  Fecha-la cancela o download a meio.              |"
+echo "  |  No fim, fecha-a para terminar a aplicacao.       |"
+echo "  +--------------------------------------------------+"
+echo ""
+
 echo "A verificar atualizações..."
 # Um update falhado nunca impede a app de abrir — arranca-se com o que há.
+# Nada de "AVISO": para ela não há aqui nada a fazer, e a palavra só assusta.
 if git pull --quiet 2>/dev/null && npm install --silent --no-audit --no-fund 2>/dev/null; then
     echo "Atualizado."
 else
-    echo "AVISO: não foi possível atualizar. A abrir a versão instalada."
+    echo "Não foi possível verificar atualizações. A abrir a versão instalada."
 fi
 
+# Espera que o servidor responda em vez de dormir 2 segundos às cegas: num
+# computador lento o browser abria antes de haver quem servisse a página, e
+# ela via um erro de ligação recusada logo à entrada.
 echo "A abrir no browser..."
-(sleep 2 && open "http://localhost:4711") &
+(
+    for _ in $(seq 1 60); do
+        if curl -s -o /dev/null "http://localhost:4711/api/tipos" 2>/dev/null; then
+            open "http://localhost:4711"
+            exit 0
+        fi
+        sleep 0.5
+    done
+    echo "A aplicação está a demorar. Abre à mão: http://localhost:4711"
+) &
+
 npm start
 ```
 
@@ -1590,12 +1791,22 @@ Ficheiro `Descarregar Recibos.bat`:
 REM Atalho para a contabilista. Duplo-clique no Explorador.
 cd /d "%~dp0"
 
+REM Ver o comentario equivalente no launcher de macOS: fechar esta janela mata
+REM o servidor a meio do download.
+echo.
+echo   +--------------------------------------------------+
+echo   ^|  NAO FECHES ESTA JANELA enquanto descarregas.     ^|
+echo   ^|  Fecha-la cancela o download a meio.              ^|
+echo   ^|  No fim, fecha-a para terminar a aplicacao.       ^|
+echo   +--------------------------------------------------+
+echo.
+
 echo A verificar atualizacoes...
 git pull --quiet 2>nul && npm install --silent --no-audit --no-fund 2>nul
-if errorlevel 1 echo AVISO: nao foi possivel atualizar. A abrir a versao instalada.
+if errorlevel 1 echo Nao foi possivel verificar atualizacoes. A abrir a versao instalada.
 
 echo A abrir no browser...
-start "" /b cmd /c "timeout /t 2 >nul && start http://localhost:4711"
+start "" /b cmd /c "timeout /t 3 >nul && start http://localhost:4711"
 npm start
 ```
 
@@ -1615,6 +1826,13 @@ descarregar um de cada vez.
 Duplo-clique em **Descarregar Recibos.command** (macOS) ou
 **Descarregar Recibos.bat** (Windows). Abre no browser: escolhe as datas, os
 tipos, e carrega em Descarregar.
+
+**Não feches a janela preta (o Terminal) enquanto estiveres a descarregar** —
+é ela que faz o trabalho. Fechá-la cancela o download a meio. Quando acabares,
+fecha-a para terminar a aplicação.
+
+Um mês de recibos demora ~10-15 minutos. A barra fica parada durante os
+primeiros minutos enquanto procura os documentos — é normal.
 
 Os PDFs ficam em `downloads/<ano>-<mês>/`.
 
@@ -1658,7 +1876,7 @@ Ambos estão no `.gitignore` — nunca os commitar.
 - [ ] **Step 5: Correr a suite completa**
 
 Run: `npm test`
-Expected: PASS — 36 testes, 0 falhas.
+Expected: PASS — 45 testes, 0 falhas.
 
 - [ ] **Step 6: Verificação ponta-a-ponta contra a API real**
 
