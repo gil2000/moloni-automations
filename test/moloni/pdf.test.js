@@ -4,6 +4,7 @@ const assert = require('node:assert');
 const nock = require('nock');
 const http = require('node:http');
 const { criarPdf } = require('../../src/moloni/pdf');
+const { TIMEOUT_MS } = require('../../src/moloni/auth');
 
 function clientFalso(resposta) {
     const chamadas = [];
@@ -65,6 +66,38 @@ test('erro claro quando não há downloadBtn na página', async () => {
 test('erro claro quando o getPDFLink não devolve url', async () => {
     const client = clientFalso({});
     await assert.rejects(() => criarPdf(client).obterBytes(123), /Sem URL de PDF/);
+});
+
+// Sem timeout, um pedido de preview ou de download pendurado nunca rejeita e
+// prende o job para sempre — este é o ficheiro que faz 2 de cada 3 pedidos do
+// job, incluindo o download binário.
+//
+// NOTA: não se pode verificar isto com nock nem com o interceptor de
+// pedidos do axios (como em client.test.js), porque criarPdf() usa
+// axios.create({ jar, ..., timeout: TIMEOUT_MS }) — uma instância nova, que
+// não herda os interceptors registados na instância axios "por omissão". Em
+// vez disso, interceta-se o próprio axios.create para confirmar que a
+// config com que é chamado contém o timeout certo. Se `timeout: TIMEOUT_MS`
+// desaparecer do objeto passado a axios.create em pdf.js, este teste falha.
+test('passa o timeout de segurança ao criar o axios do preview/download', () => {
+    const axios = require('axios');
+    const criarOriginal = axios.create;
+    let configCapturada = null;
+
+    axios.create = function (cfg) {
+        configCapturada = cfg;
+        return criarOriginal.call(axios, cfg);
+    };
+
+    try {
+        criarPdf(clientFalso({}));
+    } finally {
+        axios.create = criarOriginal;
+    }
+
+    assert.ok(configCapturada, 'axios.create não foi chamado');
+    assert.strictEqual(configCapturada.timeout, TIMEOUT_MS,
+        `Esperava timeout=${TIMEOUT_MS} mas recebi ${configCapturada.timeout}`);
 });
 
 // A sessão (cookie) devolvida na preview tem de ser reenviada no pedido

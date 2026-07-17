@@ -39,16 +39,10 @@ test('funciona sem body', async () => {
 });
 
 test('envia timeout na configuração do pedido', async () => {
-    let configRecebida = null;
-
     nock('https://api.moloni.pt')
         .post('/v1/test/endpoint/')
         .query(true)
-        .reply(function() {
-            // A config do request do nock é armazenada em options
-            configRecebida = this.req.getHeaders;
-            return [200, { ok: true }];
-        });
+        .reply(200, { ok: true });
 
     const client = criarClient(config, authFalso);
 
@@ -65,7 +59,7 @@ test('envia timeout na configuração do pedido', async () => {
 
         // Verificar que timeout foi passado à config do axios
         assert.strictEqual(axiosConfigRecebida.timeout, TIMEOUT_MS,
-            `Esperava timeout=${TIMEOUT_MS} mas got ${axiosConfigRecebida.timeout}`);
+            `Esperava timeout=${TIMEOUT_MS} mas recebi ${axiosConfigRecebida.timeout}`);
     } finally {
         axios.interceptors.request.eject(interceptorId);
     }

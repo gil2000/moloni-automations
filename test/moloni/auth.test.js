@@ -2,7 +2,7 @@
 const { test, afterEach } = require('node:test');
 const assert = require('node:assert');
 const nock = require('nock');
-const { criarAuth, BASE } = require('../../src/moloni/auth');
+const { criarAuth, BASE, TIMEOUT_MS } = require('../../src/moloni/auth');
 
 const config = {
     clientId: 'id', clientSecret: 'secret',
@@ -77,4 +77,29 @@ test('lança erro quando a resposta não traz access_token', async () => {
 
 test('BASE aponta para a v1 da API', () => {
     assert.strictEqual(BASE, 'https://api.moloni.pt/v1');
+});
+
+// Sem timeout, um pedido de grant/ pendurado nunca rejeita e prende o job
+// para sempre. Este teste falha se `timeout: TIMEOUT_MS` desaparecer do
+// axios.post em auth.js.
+test('envia timeout na configuração do pedido de grant', async () => {
+    nock('https://api.moloni.pt').post('/v1/grant/').query(true)
+        .reply(200, { access_token: 'tok-1', expires_in: 3600 });
+
+    const axios = require('axios');
+    let axiosConfigRecebida = null;
+    const interceptorId = axios.interceptors.request.use(cfg => {
+        axiosConfigRecebida = cfg;
+        return cfg;
+    });
+
+    try {
+        const auth = criarAuth(config);
+        await auth.getToken();
+
+        assert.strictEqual(axiosConfigRecebida.timeout, TIMEOUT_MS,
+            `Esperava timeout=${TIMEOUT_MS} mas recebi ${axiosConfigRecebida.timeout}`);
+    } finally {
+        axios.interceptors.request.eject(interceptorId);
+    }
 });

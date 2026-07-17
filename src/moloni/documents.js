@@ -2,8 +2,9 @@
 
 // Os três tipos partilham exatamente o mesmo padrão de paginação e de
 // getPDFLink — por isso são configuração, não código.
-// O `label` é só fallback: o nome do ficheiro usa o document_type.name que a
-// API devolve por documento, que pode variar por empresa. Ver ficheiros.js.
+// O `label` é a fonte de verdade do nome do ficheiro: o document_type que a
+// API devolve por documento é { document_type_id, saft_code } — nunca traz
+// `name`. Ver ficheiros.js.
 const TIPOS = {
     recibos:       { endpoint: 'receipts/getAll',        label: 'Recibo' },
     faturas:       { endpoint: 'invoices/getAll',        label: 'Fatura' },

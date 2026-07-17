@@ -26,7 +26,7 @@ const { criarPdf } = require('../src/moloni/pdf');
             const bytes = await pdf.obterBytes(doc.document_id);
             console.log(
                 `OK     ${tipo}: ${docs.length} docs em ${ano}; ` +
-                `PDF de "${doc.document_type?.name} ${doc.number}" = ${bytes.length} bytes`
+                `PDF de "${TIPOS[tipo].label} ${doc.number}" = ${bytes.length} bytes`
             );
         } catch (err) {
             console.log(`FALHOU ${tipo}: ${err.message}`);

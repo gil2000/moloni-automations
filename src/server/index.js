@@ -91,7 +91,9 @@ app.post('/api/abrir-pasta', (req, res) => {
     res.json({ ok: true });
 });
 
-app.listen(PORTA, () => {
+// App local e de utilizador único: ligar a 0.0.0.0 exporia /api/jobs e
+// /api/abrir-pasta a qualquer pessoa na mesma rede (ex.: wifi de escritório).
+app.listen(PORTA, '127.0.0.1', () => {
     console.log(`\n  Moloni Downloader:  http://localhost:${PORTA}`);
     console.log(`  Empresa:            ${config.companyId}`);
     console.log(`  Guarda em:          ${baseDir}\n`);
