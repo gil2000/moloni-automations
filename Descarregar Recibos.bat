@@ -51,13 +51,10 @@ if errorlevel 1 (
     echo Atualizado.
 )
 
-REM Espera que o servidor responda em vez de dormir as cegas: num computador
-REM lento o browser abria antes de haver quem servisse a pagina, e ela via um
-REM erro de ligacao recusada logo a entrada. Mesmo padrao do launcher de macOS,
-REM aqui com PowerShell por estar sempre disponivel no Windows 10+.
-echo A abrir no browser...
-start "" /b powershell -NoProfile -Command "for ($i=0; $i -lt 60; $i++) { try { Invoke-WebRequest -UseBasicParsing -Uri 'http://localhost:4711/api/tipos' -TimeoutSec 1 | Out-Null; Start-Process 'http://localhost:4711'; exit } catch {}; Start-Sleep -Milliseconds 500 }; Write-Host 'A aplicacao esta a demorar. Abre a mao: http://localhost:4711'"
-
+REM O browser e aberto pelo proprio servidor, quando esta pronto (ver
+REM src/server/index.js). A versao anterior tentava adivinhar aqui, com
+REM PowerShell e polling dentro de um start /b — aspas dentro de aspas dentro
+REM do cmd — e nunca funcionou num Windows a serio.
 call npm start
 
 REM Se o npm start rebentar, a janela fechava-se e levava o erro com ela — que

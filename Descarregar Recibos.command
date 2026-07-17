@@ -49,21 +49,10 @@ else
     echo "Não foi possível verificar atualizações. A abrir a versão instalada."
 fi
 
-# Espera que o servidor responda em vez de dormir 2 segundos às cegas: num
-# computador lento o browser abria antes de haver quem servisse a página, e
-# ela via um erro de ligação recusada logo à entrada.
-echo "A abrir no browser..."
-(
-    for _ in $(seq 1 60); do
-        if curl -s -o /dev/null "http://localhost:4711/api/tipos" 2>/dev/null; then
-            open "http://localhost:4711"
-            exit 0
-        fi
-        sleep 0.5
-    done
-    echo "A aplicação está a demorar. Abre à mão: http://localhost:4711"
-) &
-
+# O browser é aberto pelo próprio servidor, quando está pronto (ver
+# src/server/index.js). Quem sabe quando o servidor está pronto é o servidor —
+# aqui só se conseguia adivinhar, e essa adivinhação tinha de ser escrita duas
+# vezes, em bash e em PowerShell. A de Windows nunca funcionou.
 npm start
 
 # Se o npm start rebentar, a janela não deve desaparecer e levar o erro com ela

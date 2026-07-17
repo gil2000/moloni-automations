@@ -83,18 +83,42 @@ app.post('/api/jobs', async (req, res) => {
     })();
 });
 
-app.post('/api/abrir-pasta', (req, res) => {
+// Abrir uma pasta e abrir um URL são comandos diferentes no Windows
+// (`explorer` vs `start`) — não os juntar.
+function abrirPasta(caminho) {
     const comando = process.platform === 'darwin' ? 'open'
         : process.platform === 'win32' ? 'explorer'
         : 'xdg-open';
-    exec(`${comando} "${baseDir}"`);
+    exec(`${comando} "${caminho}"`);
+}
+
+function abrirNoBrowser(url) {
+    const comando = process.platform === 'darwin' ? 'open'
+        : process.platform === 'win32' ? 'start ""'  // o "" é o título da janela
+        : 'xdg-open';
+    exec(`${comando} "${url}"`, err => {
+        if (err) console.log(`  (não consegui abrir o browser — abre à mão: ${url})`);
+    });
+}
+
+app.post('/api/abrir-pasta', (req, res) => {
+    abrirPasta(baseDir);
     res.json({ ok: true });
 });
 
 // App local e de utilizador único: ligar a 0.0.0.0 exporia /api/jobs e
 // /api/abrir-pasta a qualquer pessoa na mesma rede (ex.: wifi de escritório).
 app.listen(PORTA, '127.0.0.1', () => {
-    console.log(`\n  Moloni Downloader:  http://localhost:${PORTA}`);
+    const url = `http://localhost:${PORTA}`;
+    console.log(`\n  Moloni Downloader:  ${url}`);
     console.log(`  Empresa:            ${config.companyId}`);
     console.log(`  Guarda em:          ${baseDir}\n`);
+
+    // Abrir o browser aqui, e não no launcher: quem sabe exatamente quando o
+    // servidor está pronto é o servidor. Os launchers tentavam adivinhar com
+    // polling, o que obrigava a escrever a mesma lógica duas vezes — em bash e
+    // em PowerShell dentro de um .bat, com aspas dentro de aspas. A versão de
+    // Windows nunca chegou a funcionar. Aqui é uma linha, testável, e igual
+    // nas duas plataformas.
+    if (process.env.ABRIR_BROWSER !== '0') abrirNoBrowser(url);
 });
