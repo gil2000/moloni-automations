@@ -8,6 +8,12 @@ name: Build Windows (.exe)
 # corre com Wine, que não está instalado, ou Rosetta). Mais tarde, este é
 # também o mecanismo que vai publicar as releases automáticas que o
 # electron-updater usa.
+#   ⚠️ Para testar uma correção nova: aciona um workflow NOVO (aba Actions →
+#   este workflow → botão "Run workflow"). NÃO uses "Re-run all jobs" numa
+#   execução já existente — isso repete a run presa ao commit que ela usou da
+#   primeira vez, não ao HEAD atual do branch. Já nos confundiu uma vez: o
+#   .exe saiu com o mesmo tamanho e o mesmo erro porque re-executámos a build
+#   antiga em vez de disparar uma nova.
 on:
   workflow_dispatch:
 
