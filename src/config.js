@@ -1,5 +1,5 @@
 'use strict';
-require('dotenv').config();
+require('dotenv').config({ quiet: true });
 
 const OBRIGATORIAS = [
     'MOLONI_CLIENT_ID',

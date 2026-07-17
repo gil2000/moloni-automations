@@ -61,6 +61,30 @@
 <script>
 const $ = id => document.getElementById(id);
 
+// Os motivos de erro trazem texto CRU da API do Moloni — o documents.js mete lá
+// JSON.stringify da resposta inesperada. Nada disso entra em innerHTML sem passar
+// por aqui: `<img src=x onerror=...>` injetado assim chega a executar.
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// Saber se há job a decorrer é o que permite distinguir "a ligação caiu e o
+// download morreu" de "o browser reconectou o SSE sem nada estar a acontecer".
+let jobACorrer = false;
+
+function libertarBotao() {
+  jobACorrer = false;
+  $('btn').disabled = false;
+  $('btn').textContent = 'Descarregar';
+}
+
+// Todo o caminho de erro passa por aqui — se algum não passar, o botão fica
+// preso em "A descarregar…" e ela tem de recarregar a página sem perceber porquê.
+function mostrarErro(msg) {
+  $('painel').style.display = 'block';
+  $('estado').innerHTML = `<span class="erro">${esc(msg)}</span>`;
+  libertarBotao();
+}
+
 // Por defeito: o mês passado — o caso real é o fecho mensal da contabilidade.
 (function preencherDatas() {
   const hoje = new Date();
@@ -79,7 +103,21 @@ fetch('/api/tipos').then(r => r.json()).then(tipos => {
 
 const fmt = n => n.toLocaleString('pt-PT');
 
-new EventSource('/api/eventos').onmessage = e => {
+const fonte = new EventSource('/api/eventos');
+
+// Sem isto, se a ligação cair (o servidor reinicia, ou rebenta), o browser
+// reconecta em silêncio — mas o job morreu com o processo antigo e nunca mais
+// chega 'concluido' nem 'erro'. Ela ficava a olhar para uma barra parada sem
+// saber se ainda está a listar (que demora 3-5 min, e é normal) ou se morreu.
+// Como isto corre em localhost, uma ligação perdida significa quase de certeza
+// que o servidor caiu — vale mais um falso alarme do que um silêncio eterno.
+fonte.onerror = () => {
+  if (!jobACorrer) return; // reconexão sem job a decorrer não interessa a ninguém
+  mostrarErro('Perdeu-se a ligação à aplicação. O download pode não ter terminado — '
+    + 'confirma a pasta e tenta outra vez.');
+};
+
+fonte.onmessage = e => {
   const ev = JSON.parse(e.data);
 
   if (ev.fase === 'listar') {
@@ -98,44 +136,51 @@ new EventSource('/api/eventos').onmessage = e => {
   if (ev.fase === 'concluido') {
     $('barra').value = 100;
     $('estado').innerHTML = `<span class="ok">Concluído: ${fmt(ev.sucesso)} de ${fmt(ev.total)} guardados.</span>`;
-    let html = '<p><button class="sec" onclick="fetch(\'/api/abrir-pasta\',{method:\'POST\'})">Abrir pasta</button></p>';
+    let html = '<p><button class="sec" id="abrir">Abrir pasta</button></p>';
     if (ev.falhas?.length) {
       html += `<details><summary>${fmt(ev.falhas.length)} falharam</summary><ul>`
-        + ev.falhas.map(f => `<li>${f.numero}: ${f.motivo}</li>`).join('') + '</ul></details>';
+        + ev.falhas.map(f => `<li>${esc(f.numero)}: ${esc(f.motivo)}</li>`).join('')
+        + '</ul></details>';
     }
     $('resumo').innerHTML = html;
-    $('btn').disabled = false;
-    $('btn').textContent = 'Descarregar';
+    $('abrir').onclick = () => fetch('/api/abrir-pasta', { method: 'POST' });
+    libertarBotao();
   }
   if (ev.fase === 'erro') {
-    $('estado').innerHTML = `<span class="erro">Erro: ${ev.motivo}</span>`;
-    $('btn').disabled = false;
-    $('btn').textContent = 'Descarregar';
+    mostrarErro(`Erro: ${ev.motivo}`);
   }
 };
 
 $('form').onsubmit = async e => {
   e.preventDefault();
   const tipos = [...document.querySelectorAll('input[name=tipo]:checked')].map(c => c.value);
-  if (tipos.length === 0) return alert('Escolhe pelo menos um tipo de documento.');
+  if (tipos.length === 0) return mostrarErro('Escolhe pelo menos um tipo de documento.');
 
+  jobACorrer = true;
   $('btn').disabled = true;
   $('btn').textContent = 'A descarregar…';
   $('painel').style.display = 'block';
   $('resumo').innerHTML = '';
   $('estado').textContent = 'A preparar…';
 
-  const resposta = await fetch('/api/jobs', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inicio: $('inicio').value, fim: $('fim').value, tipos }),
-  });
+  try {
+    const resposta = await fetch('/api/jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inicio: $('inicio').value, fim: $('fim').value, tipos }),
+    });
 
-  if (!resposta.ok) {
-    const { erro } = await resposta.json();
-    $('estado').innerHTML = `<span class="erro">${erro}</span>`;
-    $('btn').disabled = false;
-    $('btn').textContent = 'Descarregar';
+    if (!resposta.ok) {
+      const { erro } = await resposta.json()
+        .catch(() => ({ erro: 'A aplicação recusou o pedido.' }));
+      mostrarErro(erro);
+    }
+  } catch {
+    // Isto corre em localhost: se o fetch rebenta, o servidor caiu ou nunca
+    // arrancou. Sem este catch, a promessa rejeitava em silêncio e o botão
+    // ficava preso em "A descarregar…" até ela recarregar a página.
+    mostrarErro('Não foi possível falar com a aplicação. Fecha esta janela e '
+      + 'abre outra vez pelo atalho.');
   }
 };
 </script>
