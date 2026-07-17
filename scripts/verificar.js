@@ -58,62 +58,32 @@ try {
     process.exit(1);
 }
 
-// 4. Ligação ao Moloni e os 3 tipos de documento — o teste que interessa
-var criarAuth      = require('../src/moloni/auth').criarAuth;
-var criarClient    = require('../src/moloni/client').criarClient;
-var documentsMod   = require('../src/moloni/documents');
-var criarPdf       = require('../src/moloni/pdf').criarPdf;
+// 4. Ligação ao Moloni e os 3 tipos de documento — o teste que interessa.
+// A lógica vive em src/moloni/diagnostico.js, partilhada com o botão
+// "Testar ligação" da tab de Configuração — uma só verdade, dois consumidores.
+var criarAuth    = require('../src/moloni/auth').criarAuth;
+var criarClient  = require('../src/moloni/client').criarClient;
+var documentsMod = require('../src/moloni/documents');
+var criarPdf     = require('../src/moloni/pdf').criarPdf;
+var testarLigacao = require('../src/moloni/diagnostico').testarLigacao;
 
 (async function () {
     var ano = Number(process.argv[2]) || new Date().getFullYear();
-    var client = criarClient(config, criarAuth(config));
+    var auth = criarAuth(config);
+    var client = criarClient(config, auth);
     var pdf = criarPdf(client);
 
     console.log('\n  A testar a ligação ao Moloni (ano ' + ano + ')...\n');
 
-    // A autenticação é testada primeiro e à parte: credenciais erradas são o erro
-    // mais provável de um onboarding, e sem isto apareciam três vezes seguidas
-    // disfarçadas de "este tipo de documento falhou".
-    try {
-        await criarAuth(config).getToken();
-        ok('Autenticação no Moloni');
-    } catch (err) {
-        erro(err.message, 'Corrigir o .env e correr isto outra vez');
-        console.log('\nParei aqui — sem autenticação não dá para testar mais nada.\n');
-        process.exit(1);
+    var relatorio = await testarLigacao({ auth, client, pdf, tipos: documentsMod.TIPOS, ano });
+
+    for (var r of relatorio.resultados) {
+        if (r.ok === true) ok(r.mensagem);
+        else if (r.ok === false) erro(r.mensagem, 'Corrigir o .env e correr isto outra vez');
+        else console.log('  AVISO  ' + r.mensagem);
     }
 
-    for (var tipo of Object.keys(documentsMod.TIPOS)) {
-        var etiqueta = documentsMod.TIPOS[tipo].label;
-        try {
-            // Pede-se UMA página pequena, não o ano inteiro. O listarPorAno pagina
-            // tudo (5000+ documentos = ~100 pedidos por tipo), e aqui só é preciso
-            // um documento para provar que o fluxo do PDF funciona — quem corre isto
-            // está de pé em casa de um cliente à espera.
-            var pagina = await client.post(documentsMod.TIPOS[tipo].endpoint, {
-                year: ano, qty: 5, offset: 0,
-            });
-
-            if (!Array.isArray(pagina)) {
-                erro(etiqueta + ': resposta inesperada do Moloni', 'Confirmar que esta conta tem acesso à API');
-                continue;
-            }
-
-            var emitidos = pagina.filter(function (d) { return d.status !== 0; });
-            if (emitidos.length === 0) {
-                console.log('  AVISO  ' + etiqueta + ': sem documentos emitidos em ' + ano + ' — nada para testar');
-                continue;
-            }
-
-            var bytes = await pdf.obterBytes(emitidos[0].document_id);
-            ok(etiqueta + ': PDF de "' + etiqueta + ' ' + emitidos[0].number + '" = '
-                + bytes.length + ' bytes');
-        } catch (err) {
-            erro(etiqueta + ': ' + err.message, 'Confirmar que esta conta Moloni tem acesso a este tipo de documento');
-        }
-    }
-
-    if (falhou) {
+    if (!relatorio.ok) {
         console.log('\nHá problemas por resolver — ver acima. A app não vai funcionar assim.\n');
         process.exit(1);
     }

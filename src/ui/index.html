@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Descarregar documentos Moloni</title>
+<title>Moloni Downloader</title>
 <style>
   :root { --azul: #0b5fff; --cinza: #6b7280; --erro: #b91c1c; --ok: #15803d; }
   * { box-sizing: border-box; }
@@ -15,13 +15,18 @@
   legend { padding: 0 0.4rem; font-weight: 600; font-size: 0.9rem; }
   .datas { display: flex; gap: 1rem; }
   .datas label { flex: 1; display: block; font-size: 0.85rem; color: var(--cinza); }
-  input[type=date] { width: 100%; padding: 0.5rem; font-size: 1rem;
-                     border: 1px solid #d1d5db; border-radius: 6px; }
+  input[type=date], input[type=text], input[type=password], select {
+    width: 100%; padding: 0.5rem; font-size: 1rem;
+    border: 1px solid #d1d5db; border-radius: 6px; font-family: inherit;
+  }
+  .campo { display: block; margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--cinza); }
+  .campo input, .campo select { margin-top: 0.25rem; color: #111; }
   .tipo { display: block; margin: 0.35rem 0; }
   button { background: var(--azul); color: #fff; border: 0; border-radius: 6px;
            padding: 0.7rem 1.2rem; font-size: 1rem; cursor: pointer; }
   button:disabled { background: #9ca3af; cursor: default; }
   button.sec { background: #fff; color: var(--azul); border: 1px solid var(--azul); }
+  .acoes { display: flex; gap: 0.75rem; }
   #painel { margin-top: 1.5rem; display: none; }
   progress { width: 100%; height: 1rem; }
   #estado { font-variant-numeric: tabular-nums; }
@@ -34,36 +39,100 @@
   #marca.tem { display: flex; }
   #marca img { max-height: 44px; max-width: 40%; object-fit: contain; }
   #marca .liga { flex: 1; height: 1px; background: #e5e7eb; }
+  /* O logo do fornecedor (ALLPRA) é um JPEG de fundo preto sólido, sem canal
+     alfa — sem isto ficava um retângulo preto colado à página branca. */
+  #marca .fornecedor { background: #000; padding: 0.4rem 0.7rem; border-radius: 6px; }
+  /* Tabs: Descarregar / Configuração */
+  #tabs { display: flex; gap: 1.25rem; margin-bottom: 1.5rem; border-bottom: 1px solid #e5e7eb; }
+  #tabs button { background: none; border: none; color: var(--cinza); padding: 0.6rem 0;
+                 font-size: 0.95rem; border-bottom: 2px solid transparent; border-radius: 0; cursor: pointer; }
+  #tabs button.ativa { color: var(--azul); border-bottom-color: var(--azul); font-weight: 600; }
+  section[hidden] { display: none; }
+  .lista-teste { list-style: none; padding: 0; margin: 0.75rem 0 0; }
+  .lista-teste li { margin: 0.3rem 0; }
 </style>
 </head>
 <body>
 <div id="marca"></div>
 
-<h1>Descarregar documentos Moloni</h1>
-<p class="sub">Escolhe o período e os tipos de documento.</p>
+<nav id="tabs">
+  <button type="button" data-tab="descarregar">Descarregar</button>
+  <button type="button" data-tab="config">Configuração</button>
+</nav>
 
-<form id="form">
-  <fieldset>
-    <legend>Período</legend>
-    <div class="datas">
-      <label>De <input type="date" id="inicio" required></label>
-      <label>Até <input type="date" id="fim" required></label>
+<section id="tab-descarregar" hidden>
+  <h1>Descarregar documentos Moloni</h1>
+  <p class="sub">Escolhe o período e os tipos de documento.</p>
+
+  <form id="form">
+    <fieldset>
+      <legend>Período</legend>
+      <div class="datas">
+        <label>De <input type="date" id="inicio" required></label>
+        <label>Até <input type="date" id="fim" required></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Tipos de documento</legend>
+      <div id="tipos"></div>
+    </fieldset>
+
+    <button type="submit" id="btn">Descarregar</button>
+  </form>
+
+  <div id="painel">
+    <p id="estado">A preparar…</p>
+    <progress id="barra" max="100" value="0"></progress>
+    <div id="resumo"></div>
+  </div>
+</section>
+
+<section id="tab-config" hidden>
+  <h1>Configuração</h1>
+  <p class="sub">Credenciais Moloni e onde guardar os documentos.</p>
+
+  <form id="form-config">
+    <fieldset>
+      <legend>Credenciais Moloni</legend>
+      <label class="campo">Client ID
+        <input type="text" id="cfg-clientId" autocomplete="off">
+      </label>
+      <label class="campo">Client Secret
+        <input type="password" id="cfg-clientSecret" autocomplete="off">
+      </label>
+      <label class="campo">Utilizador
+        <input type="text" id="cfg-username" autocomplete="off">
+      </label>
+      <label class="campo">Password
+        <input type="password" id="cfg-password" autocomplete="off">
+      </label>
+      <label class="campo">ID da empresa
+        <input type="text" id="cfg-companyId" autocomplete="off">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Destino</legend>
+      <label class="campo">Pasta onde guardar
+        <input type="text" id="cfg-downloadDir" autocomplete="off">
+      </label>
+      <label class="campo">Organizar por
+        <select id="cfg-estrutura">
+          <option value="tipo-data">Tipo, depois mês — ex.: Recibos/2026-06/</option>
+          <option value="data-tipo">Mês, depois tipo — ex.: 2026-06/Recibos/</option>
+        </select>
+      </label>
+    </fieldset>
+
+    <div class="acoes">
+      <button type="button" class="sec" id="cfg-testar">Testar ligação</button>
+      <button type="submit" id="cfg-guardar">Guardar</button>
     </div>
-  </fieldset>
+  </form>
 
-  <fieldset>
-    <legend>Tipos de documento</legend>
-    <div id="tipos"></div>
-  </fieldset>
-
-  <button type="submit" id="btn">Descarregar</button>
-</form>
-
-<div id="painel">
-  <p id="estado">A preparar…</p>
-  <progress id="barra" max="100" value="0"></progress>
-  <div id="resumo"></div>
-</div>
+  <div id="cfg-resultado"></div>
+</section>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -73,6 +142,18 @@ const $ = id => document.getElementById(id);
 // por aqui: `<img src=x onerror=...>` injetado assim chega a executar.
 const esc = s => String(s).replace(/[&<>"']/g, c =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// --- Tabs ---
+function mudarTab(nome) {
+  for (const btn of document.querySelectorAll('#tabs button')) {
+    btn.classList.toggle('ativa', btn.dataset.tab === nome);
+  }
+  $('tab-descarregar').hidden = nome !== 'descarregar';
+  $('tab-config').hidden = nome !== 'config';
+}
+for (const btn of document.querySelectorAll('#tabs button')) {
+  btn.onclick = () => mudarTab(btn.dataset.tab);
+}
 
 // Saber se há job a decorrer é o que permite distinguir "a ligação caiu e o
 // download morreu" de "o browser reconectou o SSE sem nada estar a acontecer".
@@ -106,9 +187,9 @@ function mostrarErro(msg) {
 // ser o motivo de a app não abrir.
 fetch('/api/branding').then(r => r.json()).then(({ fornecedor, cliente }) => {
   if (!fornecedor && !cliente) return;
-  const img = src => `<img src="${src}" alt="">`;
+  const img = (src, classe) => `<img src="${src}" alt="" class="${classe || ''}">`;
   $('marca').innerHTML =
-    (fornecedor ? img(fornecedor) : '') +
+    (fornecedor ? img(fornecedor, 'fornecedor') : '') +
     '<span class="liga"></span>' +
     (cliente ? img(cliente) : '');
   $('marca').className = 'tem';
@@ -122,6 +203,109 @@ fetch('/api/tipos').then(r => r.json()).then(tipos => {
     `<label class="tipo"><input type="checkbox" name="tipo" value="${chave}"> ${etiqueta}</label>`
   ).join('');
 });
+
+// --- Configuração ---
+
+// Campos secretos nunca vêm preenchidos do servidor — só se JÁ estão
+// definidos. O placeholder diz isso, e o próprio botão de guardar sabe que um
+// campo vazio significa "não mexer", nunca "apagar" (é o servidor que decide
+// isso, em configStore.js — aqui só se comunica a regra a quem preenche).
+function carregarConfigNoFormulario(cfg) {
+  $('cfg-clientId').value = cfg.clientId;
+  $('cfg-username').value = cfg.username;
+  $('cfg-companyId').value = cfg.companyId;
+  $('cfg-downloadDir').value = cfg.downloadDir;
+  $('cfg-estrutura').value = cfg.estrutura;
+  $('cfg-clientSecret').placeholder = cfg.clientSecretPreenchido
+    ? '········ (preenchido — deixa vazio para manter)' : 'obrigatório';
+  $('cfg-password').placeholder = cfg.passwordPreenchido
+    ? '········ (preenchida — deixa vazio para manter)' : 'obrigatória';
+  return cfg;
+}
+
+function configCompleta(cfg) {
+  return !!(cfg.clientId && cfg.username && cfg.companyId
+    && cfg.clientSecretPreenchido && cfg.passwordPreenchido);
+}
+
+function valoresDoFormularioConfig() {
+  return {
+    clientId: $('cfg-clientId').value.trim(),
+    clientSecret: $('cfg-clientSecret').value,
+    username: $('cfg-username').value.trim(),
+    password: $('cfg-password').value,
+    companyId: $('cfg-companyId').value.trim(),
+    downloadDir: $('cfg-downloadDir').value.trim(),
+    estrutura: $('cfg-estrutura').value,
+  };
+}
+
+function renderizarResultadoTeste(relatorio) {
+  const linha = r => {
+    const classe = r.ok === true ? 'ok' : r.ok === false ? 'erro' : '';
+    const marca = r.ok === true ? '✓' : r.ok === false ? '✗' : '…';
+    return `<li class="${classe}">${marca} ${esc(r.mensagem)}</li>`;
+  };
+  $('cfg-resultado').innerHTML = `<ul class="lista-teste">${relatorio.resultados.map(linha).join('')}</ul>`;
+}
+
+// Ao abrir a app: se faltar alguma credencial, mostra logo a tab de
+// Configuração — não faz sentido oferecer "Descarregar" a quem ainda não pode.
+fetch('/api/config').then(r => r.json()).then(cfg => {
+  carregarConfigNoFormulario(cfg);
+  mudarTab(configCompleta(cfg) ? 'descarregar' : 'config');
+}).catch(() => mudarTab('descarregar'));
+
+$('cfg-testar').onclick = async () => {
+  $('cfg-testar').disabled = true;
+  $('cfg-testar').textContent = 'A testar…';
+  $('cfg-resultado').innerHTML = '<p>A testar a ligação ao Moloni…</p>';
+  try {
+    const resposta = await fetch('/api/config/testar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(valoresDoFormularioConfig()),
+    });
+    renderizarResultadoTeste(await resposta.json());
+  } catch {
+    $('cfg-resultado').innerHTML = '<p class="erro">Não foi possível falar com a aplicação.</p>';
+  } finally {
+    $('cfg-testar').disabled = false;
+    $('cfg-testar').textContent = 'Testar ligação';
+  }
+};
+
+$('form-config').onsubmit = async e => {
+  e.preventDefault();
+  $('cfg-guardar').disabled = true;
+  $('cfg-guardar').textContent = 'A guardar…';
+
+  try {
+    const resposta = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(valoresDoFormularioConfig()),
+    });
+    const corpo = await resposta.json().catch(() => ({}));
+
+    if (!resposta.ok) {
+      $('cfg-resultado').innerHTML = `<p class="erro">${esc(corpo.erro || 'Não foi possível guardar.')}</p>`;
+    } else {
+      $('cfg-resultado').innerHTML = '<p class="ok">Configuração guardada.</p>';
+      // Recarrega para os campos secretos voltarem a mostrar "preenchido" em
+      // vez do que ela acabou de escrever.
+      const cfgAtual = await fetch('/api/config').then(r => r.json());
+      carregarConfigNoFormulario(cfgAtual);
+    }
+  } catch {
+    $('cfg-resultado').innerHTML = '<p class="erro">Não foi possível falar com a aplicação.</p>';
+  } finally {
+    $('cfg-guardar').disabled = false;
+    $('cfg-guardar').textContent = 'Guardar';
+  }
+};
+
+// --- Descarregar ---
 
 const fmt = n => n.toLocaleString('pt-PT');
 

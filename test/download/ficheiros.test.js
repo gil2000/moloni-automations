@@ -73,3 +73,27 @@ test('os três tipos têm pasta própria', () => {
     const pastas = caminhos.map(c => c.split(path.sep)[2]);
     assert.deepStrictEqual(pastas, ['Recibos', 'Faturas', 'Faturas-Recibo']);
 });
+
+// Escolha do cliente, feita na tab de Configuração: 'tipo-data' (default) ou
+// 'data-tipo'. Sem o 4º argumento mantém-se 'tipo-data' — não pode partir
+// nenhuma instalação já a funcionar.
+test('estrutura por defeito continua tipo depois data', () => {
+    assert.strictEqual(
+        caminhoDestino('/saida', doc, 'faturas'),
+        caminhoDestino('/saida', doc, 'faturas', 'tipo-data')
+    );
+});
+
+test('estrutura data-tipo inverte a ordem', () => {
+    assert.strictEqual(
+        caminhoDestino('/saida', doc, 'faturas', 'data-tipo'),
+        path.join('/saida', '2026-06', 'Faturas', 'Fatura 2652 - ACME Lda..pdf')
+    );
+});
+
+test('um valor de estrutura desconhecido cai no default tipo-data', () => {
+    assert.strictEqual(
+        caminhoDestino('/saida', doc, 'faturas', 'isto-nao-existe'),
+        caminhoDestino('/saida', doc, 'faturas', 'tipo-data')
+    );
+});

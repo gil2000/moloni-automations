@@ -23,16 +23,18 @@ function nomeFicheiro(doc, tipo) {
     return sanitizar(`${etiqueta} ${doc.number} - ${entidade}.pdf`);
 }
 
-// Cada tipo tem o seu ramo, e dentro dele cada documento vai para a pasta do
-// seu próprio mês — não do intervalo pedido. Assim um intervalo que atravessa
-// meses arruma-se sozinho.
+// Cada documento vai para a pasta do seu próprio mês — não do intervalo
+// pedido. Assim um intervalo que atravessa meses arruma-se sozinho.
 //
-// Tipo antes do mês foi escolha do Gil, a usar: procura mais por tipo do que
-// por mês. Antes era só o mês, e descarregar recibos e faturas do mesmo período
-// despejava tudo na mesma pasta.
-function caminhoDestino(baseDir, doc, tipo) {
+// A ordem tipo/data é escolhida por cada cliente na tab de Configuração — o
+// primeiro cliente (ALLPRA) procura mais por tipo do que por mês; outro pode
+// preferir o oposto. 'tipo-data' é o default: sem escolha explícita, uma
+// instalação existente não pode mudar de comportamento sozinha.
+function caminhoDestino(baseDir, doc, tipo, estrutura = 'tipo-data') {
     const pasta = TIPOS[tipo]?.pasta || 'Documentos';
-    return path.join(baseDir, pasta, bucketAnoMes(doc.date), nomeFicheiro(doc, tipo));
+    const mes = bucketAnoMes(doc.date);
+    const partes = estrutura === 'data-tipo' ? [mes, pasta] : [pasta, mes];
+    return path.join(baseDir, ...partes, nomeFicheiro(doc, tipo));
 }
 
 module.exports = { sanitizar, bucketAnoMes, nomeFicheiro, caminhoDestino };

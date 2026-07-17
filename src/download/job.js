@@ -39,7 +39,7 @@ function escreverEmDisco(caminho, bytes) {
     fs.writeFileSync(caminho, bytes);
 }
 
-async function correrJob({ documents, pdf, baseDir, inicio, fim, tipos }, aoEvento = () => {}, deps = {}) {
+async function correrJob({ documents, pdf, baseDir, inicio, fim, tipos, estrutura }, aoEvento = () => {}, deps = {}) {
     const esperar = deps.esperar || (ms => new Promise(r => setTimeout(r, ms)));
     const escrever = deps.escrever || escreverEmDisco;
 
@@ -65,7 +65,7 @@ async function correrJob({ documents, pdf, baseDir, inicio, fim, tipos }, aoEven
     for (const { doc, tipo } of alvo) {
         try {
             const bytes = await comRetry(() => pdf.obterBytes(doc.document_id), esperar);
-            escrever(caminhoDestino(baseDir, doc, tipo), bytes);
+            escrever(caminhoDestino(baseDir, doc, tipo, estrutura), bytes);
             sucesso++;
         } catch (err) {
             falhas.push({ numero: doc.number, documentId: doc.document_id, motivo: err.message });

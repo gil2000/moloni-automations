@@ -2,27 +2,36 @@
 const path = require('path');
 const express = require('express');
 const { exec } = require('child_process');
-const { carregarConfig } = require('../config');
+const { tentarCarregarConfig } = require('../config');
 const { criarAuth } = require('../moloni/auth');
 const { criarClient } = require('../moloni/client');
 const { criarDocuments, TIPOS } = require('../moloni/documents');
 const { criarPdf } = require('../moloni/pdf');
+const { testarLigacao } = require('../moloni/diagnostico');
 const { correrJob } = require('../download/job');
 const { validarPedido } = require('./validar');
 const { encontrarLogos } = require('./branding');
+const configStore = require('./configStore');
 
 const PORTA = Number(process.env.PORT) || 4711;
+const ENV_PATH = path.join(__dirname, '..', '..', '.env');
 
-// Falhar já e com uma mensagem útil, e não a meio do primeiro job.
-let config;
-try {
-    config = carregarConfig();
-} catch (err) {
-    console.error('\nConfiguração inválida:\n  ' + err.message + '\n');
-    process.exit(1);
+// Estado mutável, de propósito: numa instalação nova (sem .env) não há
+// credenciais no arranque, e o cliente preenche-as na tab de Configuração em
+// vez de editar um ficheiro à mão. Por isso o servidor já não sai do processo
+// se faltar config — arranca sempre, e cada endpoint que precisa de
+// credenciais verifica se `config` existe.
+let config = null;
+let baseDir = null;
+
+function aplicarConfig(novaConfig) {
+    config = novaConfig;
+    baseDir = path.resolve(config.downloadDir);
 }
 
-const baseDir = path.resolve(config.downloadDir);
+const arranque = tentarCarregarConfig();
+if (arranque.config) aplicarConfig(arranque.config);
+
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'ui')));
@@ -53,6 +62,39 @@ app.get('/api/tipos', (req, res) => {
     res.json(etiquetas);
 });
 
+// --- Configuração: o cliente preenche aqui, em vez de editar o .env à mão ---
+
+app.get('/api/config', (req, res) => {
+    res.json(configStore.paraFormulario(ENV_PATH));
+});
+
+app.post('/api/config', (req, res) => {
+    try {
+        aplicarConfig(configStore.gravar(ENV_PATH, req.body || {}));
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(400).json({ erro: err.message });
+    }
+});
+
+// Testa os valores que estão no formulário, ainda por gravar — dá feedback
+// antes de ela se comprometer a "Guardar". Reaproveita testarLigacao, a mesma
+// lógica que o `npm run verificar` usa no onboarding.
+app.post('/api/config/testar', async (req, res) => {
+    let configTeste;
+    try {
+        configTeste = configStore.validar(ENV_PATH, req.body || {});
+    } catch (err) {
+        return res.json({ ok: false, resultados: [{ tipo: 'auth', ok: false, mensagem: err.message }] });
+    }
+
+    const auth = criarAuth(configTeste);
+    const client = criarClient(configTeste, auth);
+    const pdf = criarPdf(client);
+    const relatorio = await testarLigacao({ auth, client, pdf, tipos: TIPOS, ano: new Date().getFullYear() });
+    res.json(relatorio);
+});
+
 app.get('/api/eventos', (req, res) => {
     res.set({
         'Content-Type': 'text/event-stream',
@@ -65,6 +107,10 @@ app.get('/api/eventos', (req, res) => {
 });
 
 app.post('/api/jobs', async (req, res) => {
+    if (!config) {
+        return res.status(400).json({ erro: 'Falta configurar as credenciais do Moloni. Vai à aba Configuração.' });
+    }
+
     const erro = validarPedido(req.body, TIPOS);
     if (erro) return res.status(400).json({ erro });
 
@@ -83,7 +129,7 @@ app.post('/api/jobs', async (req, res) => {
             const resultado = await correrJob({
                 documents: criarDocuments(client),
                 pdf: criarPdf(client),
-                baseDir, inicio, fim, tipos,
+                baseDir, inicio, fim, tipos, estrutura: config.estrutura,
             }, emitir);
             emitir({ fase: 'concluido', ...resultado, pasta: baseDir });
         } catch (err) {
@@ -113,6 +159,7 @@ function abrirNoBrowser(url) {
 }
 
 app.post('/api/abrir-pasta', (req, res) => {
+    if (!baseDir) return res.status(400).json({ erro: 'Ainda não há pasta configurada.' });
     abrirPasta(baseDir);
     res.json({ ok: true });
 });
@@ -122,8 +169,12 @@ app.post('/api/abrir-pasta', (req, res) => {
 app.listen(PORTA, '127.0.0.1', () => {
     const url = `http://localhost:${PORTA}`;
     console.log(`\n  Moloni Downloader:  ${url}`);
-    console.log(`  Empresa:            ${config.companyId}`);
-    console.log(`  Guarda em:          ${baseDir}\n`);
+    if (config) {
+        console.log(`  Empresa:            ${config.companyId}`);
+        console.log(`  Guarda em:          ${baseDir}\n`);
+    } else {
+        console.log(`  Configuração em falta — abre a aba Configuração para preencher.\n`);
+    }
 
     // Abrir o browser aqui, e não no launcher: quem sabe exatamente quando o
     // servidor está pronto é o servidor. Os launchers tentavam adivinhar com

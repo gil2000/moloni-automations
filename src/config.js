@@ -32,7 +32,21 @@ function carregarConfig(env = process.env) {
         password:     env.MOLONI_PASSWORD,
         companyId,
         downloadDir:  env.DOWNLOAD_DIR || './downloads',
+        // Escolha do cliente na tab de Configuração. Um valor desconhecido cai
+        // no default — nunca deixar um .env escrito à mão partir a app.
+        estrutura:    env.ESTRUTURA_PASTAS === 'data-tipo' ? 'data-tipo' : 'tipo-data',
     };
 }
 
-module.exports = { carregarConfig };
+// Versão que nunca lança: é o que permite ao servidor arrancar mesmo sem .env
+// completo, para o cliente preencher a configuração na própria app em vez de
+// editar um ficheiro de texto à mão.
+function tentarCarregarConfig(env = process.env) {
+    try {
+        return { config: carregarConfig(env), erro: null };
+    } catch (err) {
+        return { config: null, erro: err.message };
+    }
+}
+
+module.exports = { carregarConfig, tentarCarregarConfig };

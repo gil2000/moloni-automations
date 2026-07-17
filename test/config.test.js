@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { carregarConfig } = require('../src/config');
+const { carregarConfig, tentarCarregarConfig } = require('../src/config');
 
 const envValido = {
   MOLONI_CLIENT_ID: 'id',
@@ -36,4 +36,37 @@ test('rejeita MOLONI_COMPANY_ID não numérico', () => {
     () => carregarConfig({ ...envValido, MOLONI_COMPANY_ID: 'abc' }),
     /MOLONI_COMPANY_ID/
   );
+});
+
+test('estrutura por defeito é tipo-data', () => {
+  assert.strictEqual(carregarConfig(envValido).estrutura, 'tipo-data');
+});
+
+test('aceita ESTRUTURA_PASTAS=data-tipo', () => {
+  assert.strictEqual(
+    carregarConfig({ ...envValido, ESTRUTURA_PASTAS: 'data-tipo' }).estrutura,
+    'data-tipo'
+  );
+});
+
+test('um valor desconhecido de ESTRUTURA_PASTAS cai no default', () => {
+  assert.strictEqual(
+    carregarConfig({ ...envValido, ESTRUTURA_PASTAS: 'isto-nao-existe' }).estrutura,
+    'tipo-data'
+  );
+});
+
+// tentarCarregarConfig nunca lança — é o que permite o servidor arrancar sem
+// .env completo, para o cliente preencher a config na própria app em vez de
+// editar um ficheiro de texto.
+test('tentarCarregarConfig devolve a config quando o env é válido', () => {
+  const { config, erro } = tentarCarregarConfig(envValido);
+  assert.strictEqual(erro, null);
+  assert.strictEqual(config.clientId, 'id');
+});
+
+test('tentarCarregarConfig devolve o erro em vez de lançar', () => {
+  const { config, erro } = tentarCarregarConfig({});
+  assert.strictEqual(config, null);
+  assert.match(erro, /MOLONI_CLIENT_ID/);
 });

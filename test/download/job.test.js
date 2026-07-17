@@ -96,6 +96,38 @@ test('uma falha não mata o job e entra no relatório', async () => {
     assert.deepStrictEqual(r.falhas[0], { numero: 1001, documentId: 1, motivo: 'boom' });
 });
 
+test('a estrutura é passada até ao caminho de gravação', async () => {
+    const documents = { listarPorAno: async () => [doc(1, '2026-06-10')] };
+    const pdf = { obterBytes: async () => Buffer.from('%PDF-x') };
+    const deps = depsFalsas();
+
+    await correrJob(
+        { documents, pdf, baseDir: '/s', inicio: '2026-06-01', fim: '2026-06-30',
+          tipos: ['recibos'], estrutura: 'data-tipo' },
+        () => {}, deps
+    );
+
+    // data-tipo põe o mês antes do tipo: /s/2026-06/Recibos/...
+    const partes = deps.escritos[0].caminho.split('/');
+    assert.strictEqual(partes[2], '2026-06');
+    assert.strictEqual(partes[3], 'Recibos');
+});
+
+test('sem estrutura pedida, mantém tipo-data (não muda instalações existentes)', async () => {
+    const documents = { listarPorAno: async () => [doc(1, '2026-06-10')] };
+    const pdf = { obterBytes: async () => Buffer.from('%PDF-x') };
+    const deps = depsFalsas();
+
+    await correrJob(
+        { documents, pdf, baseDir: '/s', inicio: '2026-06-01', fim: '2026-06-30', tipos: ['recibos'] },
+        () => {}, deps
+    );
+
+    const partes = deps.escritos[0].caminho.split('/');
+    assert.strictEqual(partes[2], 'Recibos');
+    assert.strictEqual(partes[3], '2026-06');
+});
+
 test('faz retry 3x antes de desistir de um documento', async () => {
     let tentativas = 0;
     const documents = { listarPorAno: async () => [doc(1, '2026-06-10')] };
