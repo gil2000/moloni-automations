@@ -290,6 +290,41 @@ erro de credenciais mandaria procurar no sítio errado.
 **Quando empacotar:** quando ir lá instalar deixar de ser viável. Aí o `verificar`
 continua útil como diagnóstico, mas deixa de ser o portão.
 
+## Otimização por fazer: `date` exato (medido em 2026-07-17)
+
+**O `getAll` aceita `date` exato, e nós não estamos a usar.** Este spec dizia "não
+existe filtro de intervalo de datas — só `date` exato, `expiration_date` exato, ou
+`year`", e a implementação leu isso como "não há filtro útil" e foi paginar o ano.
+O `date` exato nunca foi testado. Estava lá desde o início.
+
+Medido contra a API real, para os recibos de um dia:
+
+| estratégia | pedidos | tempo | resultado |
+|---|---|---|---|
+| `date` exato | **1** | **0,4s** | 30 recibos |
+| paginar o ano (o que a app faz) | **104** | **49s** | 30 recibos |
+
+Resultado idêntico, 104× menos pedidos. Os 49s são só listagem, antes do primeiro PDF.
+
+**A regra:** comparar os dias do intervalo com as páginas do ano (~104 nestes dados,
+mas varia com o volume da empresa).
+
+- 1 dia: 1 vs 104 pedidos → ~100× mais rápido
+- 30 dias (fecho mensal, o caso real): 30 vs 104 → ~3,5× mais rápido
+- 1 ano: 365 vs 104 → **pior**; aí paginar o ano ganha
+
+Ou seja: **dia-a-dia para intervalos curtos, paginar o ano para os longos.** Cada dia
+continua a precisar de paginação própria (um dia com >50 documentos existe), mas
+quase sempre é uma página.
+
+**Não implementado à espera de medição real.** O Gil vai cronometrar o caso que lhe
+interessa antes de se mexer no `documents.js` — que é código revisto, testado, e onde
+vive a lógica que não pode perder documentos. Otimizar o que se acha que incomoda, em
+vez do que incomoda mesmo, é como se paga complexidade a troco de nada.
+
+Isto substitui, em prioridade, a ideia da cache de listagens que estava nos "Riscos":
+a cache só ajuda em repetições; isto ajuda logo à primeira.
+
 ## Por fazer — depende do Gil
 
 **O auto-update ainda não funciona.** O remote `github.com/gil2000/moloni-automations`
