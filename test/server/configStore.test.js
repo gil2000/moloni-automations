@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { paraFormulario, gravar, validar } = require('../../src/server/configStore');
+const { paraFormulario, gravar, validar, tentarCarregarConfig } = require('../../src/server/configStore');
 
 const ENV_COMPLETO = `MOLONI_CLIENT_ID=id-real
 MOLONI_CLIENT_SECRET=segredo-real
@@ -125,4 +125,28 @@ test('validar lança se ficar inválido, sem escrever nada', () => {
     const fs = fsFalso(ENV_COMPLETO);
     assert.throws(() => validar('/x/.env', { companyId: 'abc' }, fs), /MOLONI_COMPANY_ID/);
     assert.strictEqual(fs._ler(), ENV_COMPLETO);
+});
+
+// Usada pelo arranque do servidor: precisa de ler config dum ficheiro
+// específico (não de process.env), porque o Electron vai ter o .env fora da
+// raiz do projeto — na pasta de dados do utilizador. Nunca lança: uma
+// instalação nova, sem .env ainda, tem de arrancar na mesma.
+test('tentarCarregarConfig devolve a config quando o ficheiro é válido', () => {
+    const { config, erro } = tentarCarregarConfig('/x/.env', fsFalso(ENV_COMPLETO));
+    assert.strictEqual(erro, null);
+    assert.strictEqual(config.clientId, 'id-real');
+    assert.strictEqual(config.companyId, 331227);
+});
+
+test('tentarCarregarConfig devolve o erro em vez de lançar quando falta o ficheiro', () => {
+    const { config, erro } = tentarCarregarConfig('/x/.env', fsFalso(undefined));
+    assert.strictEqual(config, null);
+    assert.match(erro, /MOLONI_CLIENT_ID/);
+});
+
+test('tentarCarregarConfig devolve o erro quando o ficheiro está incompleto', () => {
+    const parcial = 'MOLONI_CLIENT_ID=id\n';
+    const { config, erro } = tentarCarregarConfig('/x/.env', fsFalso(parcial));
+    assert.strictEqual(config, null);
+    assert.match(erro, /MOLONI_CLIENT_SECRET/);
 });

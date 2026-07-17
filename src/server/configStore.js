@@ -78,4 +78,16 @@ function gravar(caminho, novosValores, sistema = fsReal) {
     return config;
 }
 
-module.exports = { paraFormulario, gravar, validar };
+// Usada pelo arranque do servidor: precisa de ler a config dum ficheiro
+// específico, não de process.env — o Electron guarda o .env fora da raiz do
+// projeto, na pasta de dados do utilizador. Nunca lança: uma instalação nova,
+// sem .env ainda, tem de arrancar na mesma (a app pede a config na própria UI).
+function tentarCarregarConfig(caminho, sistema = fsReal) {
+    try {
+        return { config: carregarConfig(ler(caminho, sistema)), erro: null };
+    } catch (err) {
+        return { config: null, erro: err.message };
+    }
+}
+
+module.exports = { paraFormulario, gravar, validar, tentarCarregarConfig };
