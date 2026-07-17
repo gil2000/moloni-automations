@@ -16,3 +16,6 @@ moloni-recibos-CONTEXTO.md
 # Logos de cada instalação (ALLPRA, Fiscontabil, ou os do cliente). Ficam fora
 # do repo público: são marcas de terceiros, e cada cliente tem as suas.
 branding/
+
+# Build do Electron — binários gerados, não fazem sentido no repo
+dist-electron/

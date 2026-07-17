@@ -1,0 +1,43 @@
+name: Build Windows (.exe)
+
+# Acionado à mão (aba Actions do GitHub → este workflow → "Run workflow"),
+# não em cada push — o build demora minutos e não é preciso a cada commit.
+#
+# Corre numa runner Windows real. Resolve, de vez, o problema de gerar o
+# instalador NSIS a partir de um Mac (precisa de um binário Windows que só
+# corre com Wine, que não está instalado, ou Rosetta). Mais tarde, este é
+# também o mecanismo que vai publicar as releases automáticas que o
+# electron-updater usa.
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # As dependências de runtime (express, axios, ...) vivem na raiz do
+      # projeto — o electron-builder empacota-as de lá (ver "files" no
+      # electron/package.json).
+      - name: Instalar dependências do motor
+        run: npm install
+
+      - name: Instalar dependências do Electron
+        working-directory: electron
+        run: npm install
+
+      - name: Construir o instalador Windows
+        working-directory: electron
+        run: npm run build:win
+
+      - name: Publicar o instalador como artefacto do workflow
+        uses: actions/upload-artifact@v4
+        with:
+          name: moloni-downloader-windows
+          path: dist-electron/*.exe
+          if-no-files-found: error

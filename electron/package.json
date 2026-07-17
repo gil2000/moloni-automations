@@ -5,9 +5,31 @@
   "description": "Casca Electron do Moloni Downloader — o motor (src/moloni, src/download, src/server) é partilhado com a versão web e vive fora desta pasta.",
   "main": "main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "build:win": "electron-builder --win --publish never"
   },
   "devDependencies": {
-    "electron": "^43.1.1"
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "pt.allpra.moloni-downloader",
+    "productName": "Moloni Downloader",
+    "directories": {
+      "output": "../dist-electron"
+    },
+    "files": [
+      "main.js",
+      "package.json",
+      "../src/**/*",
+      "../node_modules/**/*"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }
