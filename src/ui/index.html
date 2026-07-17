@@ -78,6 +78,9 @@
       <div id="tipos"></div>
     </fieldset>
 
+    <p id="aviso-config" class="erro" hidden>
+      Falta preencher a <a href="#" id="ir-a-config">Configuração</a> antes de poderes descarregar.
+    </p>
     <button type="submit" id="btn">Descarregar</button>
   </form>
 
@@ -159,11 +162,28 @@ for (const btn of document.querySelectorAll('#tabs button')) {
 // download morreu" de "o browser reconectou o SSE sem nada estar a acontecer".
 let jobACorrer = false;
 
+// O botão tem dois motivos possíveis para estar bloqueado: um job a decorrer,
+// ou a configuração ainda incompleta. Centralizado aqui para os dois nunca se
+// pisarem — sem isto, um `libertarBotao()` no fim de um job podia reabilitar
+// o botão mesmo sem credenciais Moloni preenchidas.
+let configEstaCompleta = false;
+
+function atualizarBotaoDescarregar() {
+  $('aviso-config').hidden = configEstaCompleta;
+  if (jobACorrer) {
+    $('btn').disabled = true;
+  } else {
+    $('btn').disabled = !configEstaCompleta;
+    $('btn').textContent = 'Descarregar';
+  }
+}
+
 function libertarBotao() {
   jobACorrer = false;
-  $('btn').disabled = false;
-  $('btn').textContent = 'Descarregar';
+  atualizarBotaoDescarregar();
 }
+
+$('ir-a-config').onclick = e => { e.preventDefault(); mudarTab('config'); };
 
 // Todo o caminho de erro passa por aqui — se algum não passar, o botão fica
 // preso em "A descarregar…" e ela tem de recarregar a página sem perceber porquê.
@@ -249,12 +269,23 @@ function renderizarResultadoTeste(relatorio) {
   $('cfg-resultado').innerHTML = `<ul class="lista-teste">${relatorio.resultados.map(linha).join('')}</ul>`;
 }
 
+// Único sítio que fala com GET /api/config: preenche o formulário e atualiza
+// se o botão "Descarregar" pode estar ativo. Chamado no arranque e outra vez
+// depois de gravar — o botão nunca deve ficar desatualizado em relação ao
+// que está realmente gravado no servidor.
+async function recarregarConfig() {
+  const cfg = await fetch('/api/config').then(r => r.json());
+  carregarConfigNoFormulario(cfg);
+  configEstaCompleta = configCompleta(cfg);
+  atualizarBotaoDescarregar();
+  return cfg;
+}
+
 // Ao abrir a app: se faltar alguma credencial, mostra logo a tab de
 // Configuração — não faz sentido oferecer "Descarregar" a quem ainda não pode.
-fetch('/api/config').then(r => r.json()).then(cfg => {
-  carregarConfigNoFormulario(cfg);
-  mudarTab(configCompleta(cfg) ? 'descarregar' : 'config');
-}).catch(() => mudarTab('descarregar'));
+recarregarConfig()
+  .then(cfg => mudarTab(configEstaCompleta ? 'descarregar' : 'config'))
+  .catch(() => mudarTab('descarregar'));
 
 $('cfg-testar').onclick = async () => {
   $('cfg-testar').disabled = true;
@@ -293,9 +324,9 @@ $('form-config').onsubmit = async e => {
     } else {
       $('cfg-resultado').innerHTML = '<p class="ok">Configuração guardada.</p>';
       // Recarrega para os campos secretos voltarem a mostrar "preenchido" em
-      // vez do que ela acabou de escrever.
-      const cfgAtual = await fetch('/api/config').then(r => r.json());
-      carregarConfigNoFormulario(cfgAtual);
+      // vez do que ela acabou de escrever, e para o botão "Descarregar" ficar
+      // disponível assim que a configuração completa a torna válida.
+      await recarregarConfig();
     }
   } catch {
     $('cfg-resultado').innerHTML = '<p class="erro">Não foi possível falar com a aplicação.</p>';
@@ -359,6 +390,9 @@ fonte.onmessage = e => {
 
 $('form').onsubmit = async e => {
   e.preventDefault();
+  // Defesa a mais: o botão desabilitado já impede o clique, mas um Enter num
+  // campo de data dispara o submit do formulário na mesma.
+  if (!configEstaCompleta) return mostrarErro('Falta preencher a Configuração antes de poderes descarregar.');
   const tipos = [...document.querySelectorAll('input[name=tipo]:checked')].map(c => c.value);
   if (tipos.length === 0) return mostrarErro('Escolhe pelo menos um tipo de documento.');
 
