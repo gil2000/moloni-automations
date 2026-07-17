@@ -42,6 +42,10 @@ function criarServidor(opcoes = {}) {
         brandingDir = path.join(__dirname, '..', '..', 'branding'),
         uiDir = path.join(__dirname, '..', 'ui'),
         abrirBrowser = process.env.ABRIR_BROWSER !== '0',
+        // "./downloads" só faz sentido na versão web (o launcher corre sempre a
+        // partir da raiz do projeto). O Electron passa um caminho absoluto — ver
+        // configStore.paraFormulario.
+        downloadDirPadrao = './downloads',
     } = opcoes;
 
     // Estado mutável, de propósito: numa instalação nova (sem .env) não há
@@ -91,7 +95,7 @@ function criarServidor(opcoes = {}) {
     // --- Configuração: o cliente preenche aqui, em vez de editar o .env à mão ---
 
     app.get('/api/config', (req, res) => {
-        res.json(configStore.paraFormulario(envPath));
+        res.json(configStore.paraFormulario(envPath, undefined, downloadDirPadrao));
     });
 
     app.post('/api/config', (req, res) => {

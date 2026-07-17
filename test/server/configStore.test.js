@@ -44,6 +44,19 @@ test('paraFormulario sem .env devolve tudo vazio, sem rebentar', () => {
     assert.strictEqual(r.estrutura, 'tipo-data');
 });
 
+// O Electron passa um default absoluto (pasta de Documentos do utilizador):
+// "./downloads" resolve contra o cwd do processo, que dentro dum .exe
+// instalado pode ser qualquer coisa — nunca deve aparecer sugerido lá.
+test('paraFormulario aceita um downloadDir por defeito diferente do genérico', () => {
+    const r = paraFormulario('/x/.env', fsFalso(undefined), 'C:\\Users\\Ana\\Documents\\Moloni');
+    assert.strictEqual(r.downloadDir, 'C:\\Users\\Ana\\Documents\\Moloni');
+});
+
+test('o downloadDir já gravado no ficheiro continua a vencer o default', () => {
+    const r = paraFormulario('/x/.env', fsFalso(ENV_COMPLETO), '/qualquer/coisa');
+    assert.strictEqual(r.downloadDir, '/Users/gil/downloads');
+});
+
 test('paraFormulario devolve downloadDir e estrutura do ficheiro', () => {
     const r = paraFormulario('/x/.env', fsFalso(ENV_COMPLETO));
     assert.strictEqual(r.downloadDir, '/Users/gil/downloads');

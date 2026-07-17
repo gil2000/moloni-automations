@@ -32,12 +32,18 @@ function ler(caminho, sistema) {
 
 // O que a tab de Configuração mostra. Os campos secretos só dizem SE estão
 // preenchidos — o valor em si nunca atravessa esta fronteira.
-function paraFormulario(caminho, sistema = fsReal) {
+//
+// `downloadDirPadrao`: "./downloads" só faz sentido na versão web, onde o
+// launcher sempre corre a partir da raiz do projeto. O Electron passa um
+// caminho absoluto (pasta de Documentos do utilizador) — um caminho relativo
+// aqui resolveria contra o cwd do processo, imprevisível dentro dum .exe
+// instalado.
+function paraFormulario(caminho, sistema = fsReal, downloadDirPadrao = './downloads') {
     const env = ler(caminho, sistema);
     const r = {};
     for (const [campo, chave] of Object.entries(CAMPOS_TEXTO)) r[campo] = env[chave] || '';
     for (const [campo, chave] of Object.entries(CAMPOS_SECRETOS)) r[campo + 'Preenchido'] = !!env[chave];
-    if (!r.downloadDir) r.downloadDir = './downloads';
+    if (!r.downloadDir) r.downloadDir = downloadDirPadrao;
     if (r.estrutura !== 'data-tipo') r.estrutura = 'tipo-data';
     return r;
 }
