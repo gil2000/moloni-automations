@@ -390,6 +390,68 @@ A app arranca à mesma — o launcher está feito para nunca deixar um update fa
 impedir o arranque —, mas não se atualiza. Para fechar isto é preciso uma chave SSH
 (e mudar o remote para SSH) ou um token do GitHub guardado no keychain.
 
+## Versão desktop (.exe) — primeiro marco confirmado em 2026-07-17
+
+Pedido do Gil: a app vai ser apresentada à Fiscontabil e vai passar a ter clientes
+reais além da ALLPRA. Assumindo 99% deles em Windows, decidiu-se avançar para uma
+versão Electron, **sem abandonar a versão web** — as duas partilham o mesmo motor.
+
+**Arquitetura:** mono-repo, não um repositório à parte. `src/moloni/`,
+`src/download/` e `src/server/` não sabem que existe HTTP nem Electron — é
+exatamente a fronteira desenhada desde a Task 1 do projeto, e é o que torna a
+versão desktop uma casca (`electron/main.js`), não uma reescrita. `src/server/index.js`
+passou a exportar `criarServidor(opcoes)` em vez de arrancar como efeito colateral do
+`require` — quem chama decide porta, caminhos de `.env`/branding/downloads, e se abre
+um browser externo (a versão web sim; o Electron não, já tem a sua janela).
+
+**Onde vivem os dados, no Electron:** nunca na pasta de instalação do `.exe` — um
+update pode substituí-la, e no Windows pode nem ter permissão de escrita. `.env` e
+`branding/` vivem em `app.getPath('userData')` (`%APPDATA%\moloni-downloader-desktop`
+no Windows); a pasta de destino sugerida por omissão é
+`app.getPath('documents') + '/Moloni Downloads'` — nunca `./downloads`, que resolveria
+contra o cwd imprevisível do processo empacotado.
+
+**Build:** GitHub Actions (`windows-latest`), não localmente. Tentado no Mac do Gil
+primeiro — falhou: o `makensis` do electron-builder é um binário x86 e a máquina
+(Apple Silicon) não tem Rosetta nem Wine. Decisão consciente: 99% dos clientes são
+Windows, o build tem de ser sólido sempre, não depender de uma máquina de
+desenvolvimento. `.github/workflows/build-windows.yml`, acionado à mão
+(`workflow_dispatch`) — o build demora minutos, não faz sentido em cada push.
+
+**Bug real apanhado e corrigido antes do Gil testar:** os padrões `"../src/**/*"` no
+`files` do electron-builder são ignorados em silêncio quando saem da pasta base do
+build — o primeiro `.exe` gerado só tinha `main.js` e `package.json` dentro do
+`app.asar` (confirmado com `npx asar list`), e rebentava logo ao abrir com
+`Cannot find module '../src/server/index.js'`. Corrigido com `extraResources`,
+copiando `src/` e `node_modules/` para fora do asar, como irmãos dentro de
+`Resources/` — o `require('express')` de dentro de `src/server/index.js` continua a
+resolver-se sozinho, subindo a árvore a partir do ficheiro físico. Testado localmente
+antes de reenviar (build `--dir`, sem NSIS, executado de verdade neste Mac) — a
+lição das três falhas do launcher `.bat` (nunca testar às cegas o que só o outro SO
+revela) aplicou-se aqui também, e desta vez o teste local apanhou o bug primeiro.
+
+**Armadilha do GitHub Actions:** "Re-run all jobs" numa execução existente repete-a
+presa ao commit que ela usou da primeira vez — não ao HEAD atual do branch. Um teste
+do Gil pareceu confirmar que a correção não tinha resultado (mesmo tamanho de
+ficheiro, mesmo erro) porque, sem querer, tinha re-executado a build antiga em vez de
+disparar uma nova. Anotado no próprio workflow para não se repetir.
+
+**Confirmado a funcionar, num Windows real, depois da correção:**
+- O `.exe` abre sem erros
+- Primeira execução (sem `.env` ainda) abre logo na tab Configuração
+- A pasta de destino sugerida aparece como `C:\Users\...\Documents\Moloni Downloads`
+- "Testar ligação" fala com o Moloni a sério
+- **Ciclo completo de download confirmado**: recibos de um dia, terminou com
+  "Concluído", "Abrir pasta" leva aos PDFs certos, ficheiros válidos (não vazios,
+  não corrompidos)
+
+**Por fazer, para a versão desktop ficar completa:**
+- Auto-update (`electron-updater` + publicar releases via o mesmo workflow)
+- Ícone da app (hoje usa o genérico do Electron; dá para gerar a partir do logo ALLPRA)
+- Diálogo nativo do Windows para escolher a pasta de destino (`dialog.showOpenDialog`)
+  — resolve de vez a limitação que a versão web tem por ser só browser
+- Assinatura de código — decisão já tomada de adiar (ver "Requisitos e onboarding")
+
 ## Fora de âmbito (decidido explicitamente)
 
 - ZIP no fim, folha de resumo CSV/Excel, subpastas por entidade — todos considerados e
