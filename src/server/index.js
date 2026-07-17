@@ -9,6 +9,7 @@ const { criarDocuments, TIPOS } = require('../moloni/documents');
 const { criarPdf } = require('../moloni/pdf');
 const { correrJob } = require('../download/job');
 const { validarPedido } = require('./validar');
+const { encontrarLogos } = require('./branding');
 
 const PORTA = Number(process.env.PORT) || 4711;
 
@@ -35,6 +36,14 @@ function emitir(evento) {
     const linha = `data: ${JSON.stringify(evento)}\n\n`;
     for (const res of clientes) res.write(linha);
 }
+
+// Branding opcional, por ficheiros e não por código: cada cliente larga os
+// logos dele em branding/ e a app mostra-os. Sem ficheiros, não mostra nada.
+// A pasta está no .gitignore — o repo é público e não deve carregar marcas de
+// terceiros, e cada instalação tem as suas.
+const brandingDir = path.join(__dirname, '..', '..', 'branding');
+app.use('/branding', express.static(brandingDir));
+app.get('/api/branding', (req, res) => res.json(encontrarLogos(brandingDir)));
 
 app.get('/api/tipos', (req, res) => {
     const etiquetas = {};

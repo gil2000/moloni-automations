@@ -40,6 +40,18 @@ instaladas, `.env` completo (diz **quais** variáveis faltam), autenticação no
 Moloni (distingue username/password errados de client_id/secret errados), e o
 download de um PDF de cada tipo. Se isto passa, a app funciona.
 
+**Logos (opcional).** Para a app mostrar as marcas do cliente, criar uma pasta
+`branding/` na raiz com:
+
+```
+branding/logo-esquerda.png    # ex.: o logo do cliente
+branding/logo-direita.png     # ex.: o logo do contabilista dele
+```
+
+Aceita `.png`, `.svg`, `.jpg` e `.webp`. Sem esses ficheiros, a app não mostra
+cabeçalho nenhum. A pasta está no `.gitignore` de propósito: o repo é público e
+não deve carregar marcas de terceiros, e cada instalação tem as suas.
+
 Depois, criar um atalho do launcher no ambiente de trabalho.
 
 ## Atualizações

@@ -12,3 +12,7 @@ downloads/
 # Contexto de trabalho do Gil — material para construir a app, não artefacto do
 # projeto. Contém volumes de negócio da ALLPRA e nunca deve ir para o repo.
 moloni-recibos-CONTEXTO.md
+
+# Logos de cada instalação (ALLPRA, Fiscontabil, ou os do cliente). Ficam fora
+# do repo público: são marcas de terceiros, e cada cliente tem as suas.
+branding/

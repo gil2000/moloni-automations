@@ -29,9 +29,16 @@
   .ok { color: var(--ok); font-weight: 600; }
   details { margin-top: 0.75rem; }
   li { font-size: 0.85rem; color: var(--cinza); }
+  /* Cabeçalho de logos: só existe se houver ficheiros em branding/ */
+  #marca { display: none; align-items: center; gap: 1rem; margin-bottom: 1.5rem; }
+  #marca.tem { display: flex; }
+  #marca img { max-height: 44px; max-width: 40%; object-fit: contain; }
+  #marca .liga { flex: 1; height: 1px; background: #e5e7eb; }
 </style>
 </head>
 <body>
+<div id="marca"></div>
+
 <h1>Descarregar documentos Moloni</h1>
 <p class="sub">Escolhe o período e os tipos de documento.</p>
 
@@ -93,6 +100,18 @@ function mostrarErro(msg) {
   $('inicio').value = iso(primeiro);
   $('fim').value = iso(hoje);
 })();
+
+// Logos, se existirem em branding/. Uma instalação sem eles não mostra
+// cabeçalho nenhum — o branding nunca pode ser o motivo de a app não abrir.
+fetch('/api/branding').then(r => r.json()).then(({ esquerda, direita }) => {
+  if (!esquerda && !direita) return;
+  const img = src => `<img src="${src}" alt="">`;
+  $('marca').innerHTML =
+    (esquerda ? img(esquerda) : '') +
+    '<span class="liga"></span>' +
+    (direita ? img(direita) : '');
+  $('marca').className = 'tem';
+}).catch(() => { /* sem branding, seguimos sem cabeçalho */ });
 
 // Nenhum tipo ligado por defeito, de propósito: com os três ligados, um clique
 // distraído descarregava tudo. Escolher é uma decisão consciente — e o
